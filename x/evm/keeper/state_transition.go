@@ -221,10 +221,12 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 		}
 	}
 
+	// k.RefundGas doesn't work in omni's context, because we don't actually run the ante handler for each of these tx
+	// so the fee colelctor doesn't get the fees in the first place, and therefore doesn't have enough to refund what is due
 	// refund gas in order to match the Ethereum gas consumption instead of the default SDK one.
-	if err = k.RefundGas(ctx, msg, msg.Gas()-res.GasUsed, cfg.Params.EvmDenom); err != nil {
-		return nil, errorsmod.Wrapf(err, "failed to refund gas leftover gas to sender %s", msg.From())
-	}
+	// if err = k.RefundGas(ctx, msg, msg.Gas()-res.GasUsed, cfg.Params.EvmDenom); err != nil {
+	// 	return nil, errorsmod.Wrapf(err, "failed to refund gas leftover gas to sender %s", msg.From())
+	// }
 
 	if len(receipt.Logs) > 0 {
 		// Update transient block bloom filter
