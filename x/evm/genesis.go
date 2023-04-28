@@ -18,16 +18,19 @@ package evm
 import (
 	"bytes"
 	"fmt"
+	"math/big"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	abci "github.com/tendermint/tendermint/abci/types"
 
 	ethermint "github.com/evmos/ethermint/types"
 	"github.com/evmos/ethermint/x/evm/keeper"
 	"github.com/evmos/ethermint/x/evm/types"
+	"github.com/evmos/ethermint/x/evm/statedb"
 )
 
 // InitGenesis initializes genesis state based on exported genesis
@@ -39,6 +42,8 @@ func InitGenesis(
 ) []abci.ValidatorUpdate {
 	k.WithChainID(ctx)
 
+	k.Logger(ctx).Info("Intializing EVM state from genesis file")
+
 	err := k.SetParams(ctx, data.Params)
 	if err != nil {
 		panic(fmt.Errorf("error setting params %s", err))
@@ -49,32 +54,58 @@ func InitGenesis(
 		panic("the EVM module account has not been set")
 	}
 
+
 	for _, account := range data.Accounts {
 		address := common.HexToAddress(account.Address)
 		accAddress := sdk.AccAddress(address.Bytes())
-		// check that the EVM balance the matches the account balance
-		acc := accountKeeper.GetAccount(ctx, accAddress)
-		if acc == nil {
-			panic(fmt.Errorf("account not found for address %s", account.Address))
+
+		// this does not like the 0x prefix and hides errors
+		// code := common.Hex2Bytes(account.Code)
+		code, err := hexutil.Decode(account.Code)
+		if err != nil {
+			panic(fmt.Errorf("error decoding code %s", err))
 		}
 
-		ethAcct, ok := acc.(ethermint.EthAccountI)
-		if !ok {
-			panic(
-				fmt.Errorf("account %s must be an EthAccount interface, got %T",
-					account.Address, acc,
-				),
-			)
-		}
-		code := common.Hex2Bytes(account.Code)
 		codeHash := crypto.Keccak256Hash(code)
 
-		// we ignore the empty Code hash checking, see ethermint PR#1234
-		if len(account.Code) != 0 && !bytes.Equal(ethAcct.GetCodeHash().Bytes(), codeHash.Bytes()) {
-			s := "the evm state code doesn't match with the codehash\n"
-			panic(fmt.Sprintf("%s account: %s , evm state codehash: %v, ethAccount codehash: %v, evm state code: %s\n",
-				s, account.Address, codeHash, ethAcct.GetCodeHash(), account.Code))
+		// check if predploy
+		// TODO: put this in genesis params. could look like this
+		// if (!k.IsPredploy(ctx, accAddress)) {
+		// 	....
+		//}
+		// for now, hard code ommi context predploy
+		// unclear why their setup doesn't really allow for predploys ( by
+		// enforcing that the count exists, and matches an ethereum account)
+		if (account.Address != "0x1212400000000000000000000000000000000001") {
+			// check that the EVM balance the matches the account balance
+			acc := accountKeeper.GetAccount(ctx, accAddress)
+			if acc == nil {
+				panic(fmt.Errorf("account not found for address %s", account.Address))
+			}
+
+			ethAcct, ok := acc.(ethermint.EthAccountI)
+			if !ok {
+				panic(
+					fmt.Errorf("account %s must be an EthAccount interface, got %T",
+						account.Address, acc,
+					),
+				)
+			}
+
+			// we ignore the empty Code hash checking, see ethermint PR#1234
+			if len(account.Code) != 0 && !bytes.Equal(ethAcct.GetCodeHash().Bytes(), codeHash.Bytes()) {
+				s := "the evm state code doesn't match with the codehash\n"
+				panic(fmt.Sprintf("%s account: %s , evm state codehash: %v, ethAccount codehash: %v, evm state code: %s\n",
+					s, account.Address, codeHash, ethAcct.GetCodeHash(), account.Code))
+			}
+		} else {
+			k.SetAccount(ctx, address, statedb.Account{
+				Nonce: 0,
+				Balance: new(big.Int).SetUint64(0),
+				CodeHash: codeHash.Bytes(),
+			})
 		}
+
 
 		k.SetCode(ctx, codeHash.Bytes(), code)
 
