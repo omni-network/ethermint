@@ -146,6 +146,27 @@ func (k Keeper) ChainID() *big.Int {
 }
 
 // ----------------------------------------------------------------------------
+// For Omni
+// DidChangeTransient == true if any block evm
+// ----------------------------------------------------------------------------
+
+func (k Keeper) SetDidChangeTransient(ctx sdk.Context) {
+	store := ctx.TransientStore(k.transientKey)
+	store.Set(types.KeyPrefixTransientDidChange, []byte{1})
+}
+
+func (k Keeper) GetDidChangeTransient(ctx sdk.Context) bool {
+	store := ctx.TransientStore(k.transientKey)
+	return store.Has(types.KeyPrefixTransientDidChange)
+}
+
+func (k Keeper) EmitDidChangeEvent(ctx sdk.Context) {
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(types.EventTypeEVMDidChange),
+	)
+}
+
+// ----------------------------------------------------------------------------
 // Block Bloom
 // Required by Web3 API.
 // ----------------------------------------------------------------------------

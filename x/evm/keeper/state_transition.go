@@ -136,7 +136,6 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 		bloomReceipt ethtypes.Bloom
 	)
 
-
 	cfg, err := k.EVMConfig(ctx, sdk.ConsAddress(ctx.BlockHeader().ProposerAddress), k.eip155ChainID)
 	if err != nil {
 		return nil, errorsmod.Wrap(err, "failed to load evm config")
@@ -434,6 +433,8 @@ func (k *Keeper) ApplyMessageWithConfig(ctx sdk.Context,
 	cfg *statedb.EVMConfig,
 	txConfig statedb.TxConfig,
 ) (*types.MsgEthereumTxResponse, error) {
+	k.SetDidChangeTransient(ctx)
+
 	var (
 		ret   []byte // return bytes from evm execution
 		vmErr error  // vm errors do not effect consensus and are therefore not assigned to err

@@ -20,6 +20,7 @@ const (
 	EventTypeEthereumTx = TypeMsgEthereumTx
 	EventTypeBlockBloom = "block_bloom"
 	EventTypeTxLog      = "tx_log"
+	EventTypeEVMDidChange  = "evm_did_change"
 
 	AttributeKeyContractAddress = "contract"
 	AttributeKeyRecipient       = "recipient"
