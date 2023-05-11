@@ -29,6 +29,7 @@ import (
 	"github.com/evmos/ethermint/rpc/namespaces/ethereum/eth/filters"
 	"github.com/evmos/ethermint/rpc/namespaces/ethereum/miner"
 	"github.com/evmos/ethermint/rpc/namespaces/ethereum/net"
+	"github.com/evmos/ethermint/rpc/namespaces/ethereum/omni"
 	"github.com/evmos/ethermint/rpc/namespaces/ethereum/personal"
 	"github.com/evmos/ethermint/rpc/namespaces/ethereum/txpool"
 	"github.com/evmos/ethermint/rpc/namespaces/ethereum/web3"
@@ -52,6 +53,7 @@ const (
 	TxPoolNamespace   = "txpool"
 	DebugNamespace    = "debug"
 	MinerNamespace    = "miner"
+	OmniNamespace     = "omni"
 
 	apiVersion = "1.0"
 )
@@ -167,6 +169,22 @@ func init() {
 					Version:   apiVersion,
 					Service:   miner.NewPrivateAPI(ctx, evmBackend),
 					Public:    false,
+				},
+			}
+		},
+		OmniNamespace: func(ctx *server.Context,
+			clientCtx client.Context,
+			tmWSClient *rpcclient.WSClient,
+			allowUnprotectedTxs bool,
+			indexer ethermint.EVMTxIndexer,
+		) []rpc.API {
+			evmBackend := backend.NewBackend(ctx, ctx.Logger, clientCtx, allowUnprotectedTxs, indexer)
+			return []rpc.API{
+				{
+					Namespace: OmniNamespace,
+					Version:   apiVersion,
+					Service:   omni.NewPublicAPI(ctx.Logger, evmBackend),
+					Public:    true,
 				},
 			}
 		},

@@ -18,6 +18,7 @@ package backend
 import (
 	"fmt"
 	"math"
+	"bytes"
 	"math/big"
 
 	sdkmath "cosmossdk.io/math"
@@ -83,11 +84,30 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 	// query storage proofs
 	storageProofs := make([]rpctypes.StorageResult, len(storageKeys))
 
+	// root of evm comsos store
+	var storageHash []byte
+
 	for i, key := range storageKeys {
 		hexKey := common.HexToHash(key)
 		valueBz, proof, err := b.queryClient.GetProof(clientCtx, evmtypes.StoreKey, evmtypes.StateKey(address, hexKey.Bytes()))
 		if err != nil {
 			return nil, err
+		}
+
+		// The first proof op is an iavl proof of storage against some
+		// evm store root. the second proof op is a simple merkle proof
+		// of the evm store root inclusion within some multistore. We're
+		// interested in the evm store root.
+		root, err := GetProofOpRoot(&proof.Ops[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to get evm store root: %w", err)
+		}
+
+		// evm store hash should be the same for all storage proofs
+		if len(storageHash) > 0 && !bytes.Equal(storageHash, root) {
+			return nil, fmt.Errorf("storage hash mismatch: %x != %x", storageHash, root)
+		} else {
+			storageHash = root
 		}
 
 		storageProofs[i] = rpctypes.StorageResult{
@@ -96,6 +116,7 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 			Proof: GetHexProofs(proof),
 		}
 	}
+
 
 	// query EVM account
 	req := &evmtypes.QueryAccountRequest{
@@ -114,6 +135,7 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 		return nil, err
 	}
 
+
 	balance, ok := sdkmath.NewIntFromString(res.Balance)
 	if !ok {
 		return nil, errors.New("invalid balance")
@@ -125,7 +147,7 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 		Balance:      (*hexutil.Big)(balance.BigInt()),
 		CodeHash:     common.HexToHash(res.CodeHash),
 		Nonce:        hexutil.Uint64(res.Nonce),
-		StorageHash:  common.Hash{}, // NOTE: Ethermint doesn't have a storage hash. TODO: implement?
+		StorageHash:  common.BytesToHash(storageHash),
 		StorageProof: storageProofs,
 	}, nil
 }
