@@ -29,8 +29,8 @@ import (
 
 	ethermint "github.com/evmos/ethermint/types"
 	"github.com/evmos/ethermint/x/evm/keeper"
-	"github.com/evmos/ethermint/x/evm/types"
 	"github.com/evmos/ethermint/x/evm/statedb"
+	"github.com/evmos/ethermint/x/evm/types"
 )
 
 // InitGenesis initializes genesis state based on exported genesis
@@ -54,6 +54,7 @@ func InitGenesis(
 		panic("the EVM module account has not been set")
 	}
 
+	predeploys := map[string]bool{"0x1212400000000000000000000000000000000001": true, "0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24": true}
 
 	for _, account := range data.Accounts {
 		address := common.HexToAddress(account.Address)
@@ -73,10 +74,11 @@ func InitGenesis(
 		// if (!k.IsPredploy(ctx, accAddress)) {
 		// 	....
 		//}
-		// for now, hard code ommi context predploy
+		// for now, hard code omni predeploys
 		// unclear why their setup doesn't really allow for predploys ( by
 		// enforcing that the count exists, and matches an ethereum account)
-		if (account.Address != "0x1212400000000000000000000000000000000001") {
+		_, isPredeploy := predeploys[account.Address]
+		if !isPredeploy {
 			// check that the EVM balance the matches the account balance
 			acc := accountKeeper.GetAccount(ctx, accAddress)
 			if acc == nil {
@@ -100,12 +102,11 @@ func InitGenesis(
 			}
 		} else {
 			k.SetAccount(ctx, address, statedb.Account{
-				Nonce: 0,
-				Balance: new(big.Int).SetUint64(0),
+				Nonce:    0,
+				Balance:  new(big.Int).SetUint64(0),
 				CodeHash: codeHash.Bytes(),
 			})
 		}
-
 
 		k.SetCode(ctx, codeHash.Bytes(), code)
 
