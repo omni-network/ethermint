@@ -35,6 +35,10 @@ func QueryEvmStoreRoot(
 		evmtypes.StateKey(address, hexKey.Bytes()),
 	)
 
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proof: %w", err)
+	}
+
 	// The first proof op is an iavl proof of storage against some
 	// evm store root. the second proof op is a simple merkle proof
 	// of the evm store root inclusion within some multistore. We're
