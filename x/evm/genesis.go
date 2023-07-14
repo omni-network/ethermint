@@ -54,7 +54,11 @@ func InitGenesis(
 		panic("the EVM module account has not been set")
 	}
 
-	predeploys := map[string]bool{"0x1212400000000000000000000000000000000001": true, "0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24": true}
+	predeploys := map[string]bool{
+		"0x1212400000000000000000000000000000000001": true,
+		"0x1212400000000000000000000000000000000002": true,
+		"0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24": true,
+	}
 
 	for _, account := range data.Accounts {
 		address := common.HexToAddress(account.Address)
