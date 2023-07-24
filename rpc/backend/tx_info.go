@@ -81,14 +81,14 @@ func (b *Backend) GetTransactionByHash(txHash common.Hash) (*rpctypes.RPCTransac
 		return b.getTransactionByHashPending(txHash)
 	}
 
+	// check if tx is omni cross chain tx present in endblock events
 	if endBlock {
-
 		resBlock, err := b.TendermintBlockResultByNumber(&res.Height)
 		if err != nil {
 			b.logger.Debug("block result not found", "height", res.Height, "error", err.Error())
 			return nil, nil
 		}
-		txDetails, err := b.getTxDetailsFromEvent(resBlock.EndBlockEvents, txHash)
+		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, txHash)
 		if err != nil {
 			b.logger.Debug("decoding failed", "error", err.Error())
 			return nil, fmt.Errorf("failed to decode tx from end block events: %w", err)
@@ -96,6 +96,7 @@ func (b *Backend) GetTransactionByHash(txHash common.Hash) (*rpctypes.RPCTransac
 
 		return b.getRPCTransactionForEndBlockTx(txDetails)
 	}
+
 	block, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
 	if err != nil {
 		return nil, err
@@ -198,7 +199,7 @@ func (b *Backend) GetGasUsed(res *ethermint.TxResult, price *big.Int, gas uint64
 	return res.GasUsed
 }
 
-func (b *Backend) getTxDetailsFromEvent(events []abci.Event, txHash common.Hash) (*EndBlockTxDetails, error) {
+func (b *Backend) getTxDetailsFromEndBlockEvents(events []abci.Event, txHash common.Hash) (*EndBlockTxDetails, error) {
 	for _, event := range events {
 		if event.Type != evmtypes.EventTypeEthereumTx {
 			continue
@@ -281,13 +282,14 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 		return nil, nil
 	}
 
+	// check if tx is omni cross chain tx present in endblock events
 	if endBlock {
 		resBlock, err := b.TendermintBlockResultByNumber(&res.Height)
 		if err != nil {
 			b.logger.Debug("block result not found", "height", res.Height, "error", err.Error())
 			return nil, nil
 		}
-		txDetails, err := b.getTxDetailsFromEvent(resBlock.EndBlockEvents, hash)
+		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, hash)
 		if err != nil {
 			b.logger.Debug("decoding failed", "error", err.Error())
 			return nil, fmt.Errorf("failed to decode tx from end block events: %w", err)

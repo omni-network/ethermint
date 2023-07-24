@@ -125,8 +125,6 @@ type EthereumAPI interface {
 	// eth_getWork (on Ethereum.org)
 	// eth_submitWork (on Ethereum.org)
 	// eth_submitHashrate (on Ethereum.org)
-
-	GetEndBlockLogs(blockNum int64) (string, error)
 }
 
 var _ EthereumAPI = (*PublicAPI)(nil)
@@ -446,6 +444,7 @@ func (e *PublicAPI) GetTransactionLogs(txHash common.Hash) ([]*ethtypes.Log, err
 		return nil, nil
 	}
 
+	// if endBlock is true, then the tx is custom omni xchain tx in the endblock
 	if endBlock {
 		return backend.TxLogsFromEvents(resBlockResult.EndBlockEvents, int(res.MsgIndex))
 	}

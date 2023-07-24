@@ -160,8 +160,8 @@ func (b *Backend) GetBlockTransactionCount(block *tmrpctypes.ResultBlock) *hexut
 	}
 
 	ethMsgs := b.EthMsgsFromTendermintBlock(block, blockRes)
-	ethMsgs2 := b.EthMsgsFromTendermintEndBlock(blockRes)
-	n := hexutil.Uint(len(ethMsgs) + len(ethMsgs2))
+	endBlockMsgs := b.EthMsgsFromTendermintEndBlock(blockRes)
+	n := hexutil.Uint(len(ethMsgs) + len(endBlockMsgs))
 	return &n
 }
 
@@ -545,8 +545,8 @@ func (b *Backend) EthBlockFromTendermintBlock(
 
 	ethHeader := rpctypes.EthHeaderFromTendermint(block.Header, bloom, baseFee)
 	msgs := b.EthMsgsFromTendermintBlock(resBlock, blockRes)
-	msgs2 := b.EthMsgsFromTendermintEndBlock(blockRes)
-	msgs = append(msgs, msgs2...)
+	endBlockMsgs := b.EthMsgsFromTendermintEndBlock(blockRes)
+	msgs = append(msgs, endBlockMsgs...)
 	txs := make([]*ethtypes.Transaction, len(msgs))
 	for i, ethMsg := range msgs {
 		txs[i] = ethMsg.AsTransaction()

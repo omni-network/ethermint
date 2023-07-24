@@ -130,7 +130,7 @@ func (k Keeper) GetHashFn(ctx sdk.Context) vm.GetHashFunc {
 }
 
 // For omni
-func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg ethtypes.Message) (*types.MsgEthereumTxResponse, []byte, error) {
+func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg ethtypes.Message) (*types.MsgEthereumTxResponse, *ethtypes.Receipt, error) {
 	var (
 		bloom        *big.Int
 		bloomReceipt ethtypes.Bloom
@@ -250,11 +250,7 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 
 	k.Logger(ctx).Debug("[omni-debug] receipt while executing xchain tx", "receipt", receipt)
 
-	receiptMarshal, err := receipt.MarshalJSON()
-	if err != nil {
-		return nil, nil, errorsmod.Wrap(err, "failed to marshal receipt")
-	}
-	return res, receiptMarshal, nil
+	return res, &receipt, nil
 }
 
 // ApplyTransaction runs and attempts to perform a state transition with the given transaction (i.e Message), that will
