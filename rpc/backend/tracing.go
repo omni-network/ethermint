@@ -37,6 +37,7 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfi
 		return nil, err
 	}
 
+	// TODO: see if we can make it work with cross chain txs
 	// check if tx is omni cross chain tx, if it is skip
 	if endblock {
 		return nil, errors.New("cross chain tx is not traceable")
