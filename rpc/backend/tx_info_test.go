@@ -212,7 +212,7 @@ func (suite *BackendTestSuite) TestGetTxByEthHash() {
 			suite.SetupTest() // reset
 			tc.registerMock()
 
-			rpcTx, err := suite.backend.GetTxByEthHash(common.HexToHash(tc.tx.Hash))
+			rpcTx, _, err := suite.backend.GetTxByEthHash(common.HexToHash(tc.tx.Hash))
 
 			if tc.expPass {
 				suite.Require().NoError(err)
@@ -518,7 +518,7 @@ func (suite *BackendTestSuite) TestQueryTendermintTxIndexer() {
 			suite.SetupTest() // reset
 			tc.registerMock()
 
-			txResults, err := suite.backend.queryTendermintTxIndexer(tc.query, tc.txGetter)
+			txResults, _, err := suite.backend.queryTendermintTxIndexer(tc.query, tc.txGetter)
 
 			if tc.expPass {
 				suite.Require().NoError(err)

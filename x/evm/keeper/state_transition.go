@@ -130,7 +130,7 @@ func (k Keeper) GetHashFn(ctx sdk.Context) vm.GetHashFunc {
 }
 
 // For omni
-func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg ethtypes.Message) (*types.MsgEthereumTxResponse, error) {
+func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg ethtypes.Message) (*types.MsgEthereumTxResponse, []byte, error) {
 	var (
 		bloom        *big.Int
 		bloomReceipt ethtypes.Bloom
@@ -138,13 +138,13 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 
 	cfg, err := k.EVMConfig(ctx, sdk.ConsAddress(ctx.BlockHeader().ProposerAddress), k.eip155ChainID)
 	if err != nil {
-		return nil, errorsmod.Wrap(err, "failed to load evm config")
+		return nil, nil, errorsmod.Wrap(err, "failed to load evm config")
 	}
 
 	txConfig := k.TxConfig(ctx, txHash)
 
 	if err != nil {
-		return nil, errorsmod.Wrap(err, "failed to return ethereum transaction as core message")
+		return nil, nil, errorsmod.Wrap(err, "failed to return ethereum transaction as core message")
 	}
 
 	// snapshot to contain the tx processing and post processing in same scope
@@ -161,7 +161,7 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 	// pass true to commit the StateDB
 	res, err := k.ApplyMessageWithConfig(tmpCtx, msg, nil, true, cfg, txConfig)
 	if err != nil {
-		return nil, errorsmod.Wrap(err, "failed to apply ethereum core message")
+		return nil, nil, errorsmod.Wrap(err, "failed to apply ethereum core message")
 	}
 
 	logs := types.LogsToEthereum(res.Logs)
@@ -187,8 +187,8 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 		contractAddr = crypto.CreateAddress(msg.From(), msg.Nonce())
 	}
 
-	receipt := &ethtypes.Receipt{
-		Type:              126, // 0x7e, the same Optimism uses for deposited tx
+	receipt := ethtypes.Receipt{
+		Type:              2,   // 2 for dynamic fee type
 		PostState:         nil, // TODO: intermediate state root
 		CumulativeGasUsed: cumulativeGasUsed,
 		Bloom:             bloomReceipt,
@@ -204,7 +204,7 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 	if !res.Failed() {
 		receipt.Status = ethtypes.ReceiptStatusSuccessful
 		// Only call hooks if tx executed successfully.
-		if err = k.PostTxProcessing(tmpCtx, msg, receipt); err != nil {
+		if err = k.PostTxProcessing(tmpCtx, msg, &receipt); err != nil {
 			// If hooks return error, revert the whole tx.
 			res.VmError = types.ErrPostTxProcessing.Error()
 			k.Logger(ctx).Error("tx post processing failed", "error", err)
@@ -218,31 +218,43 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 			res.Logs = types.NewLogsFromEth(receipt.Logs)
 			ctx.EventManager().EmitEvents(tmpCtx.EventManager().Events())
 		}
+	} else {
+		receipt.Status = ethtypes.ReceiptStatusFailed
 	}
 
 	// k.RefundGas doesn't work in omni's context, because we don't actually run the ante handler for each of these tx
 	// so the fee colelctor doesn't get the fees in the first place, and therefore doesn't have enough to refund what is due
 	// refund gas in order to match the Ethereum gas consumption instead of the default SDK one.
 	// if err = k.RefundGas(ctx, msg, msg.Gas()-res.GasUsed, cfg.Params.EvmDenom); err != nil {
-	// 	return nil, errorsmod.Wrapf(err, "failed to refund gas leftover gas to sender %s", msg.From())
+	// 	return nil, nil, errorsmod.Wrapf(err, "failed to refund gas leftover gas to sender %s", msg.From())
 	// }
 
 	if len(receipt.Logs) > 0 {
 		// Update transient block bloom filter
 		k.SetBlockBloomTransient(ctx, receipt.Bloom.Big())
 		k.SetLogSizeTransient(ctx, uint64(txConfig.LogIndex)+uint64(len(receipt.Logs)))
+	} else {
+		// logs cannot be empty
+		receipt.Logs = []*ethtypes.Log{}
 	}
 
 	k.SetTxIndexTransient(ctx, uint64(txConfig.TxIndex)+1)
 
 	totalGasUsed, err := k.AddTransientGasUsed(ctx, res.GasUsed)
 	if err != nil {
-		return nil, errorsmod.Wrap(err, "failed to add transient gas used")
+		return nil, nil, errorsmod.Wrap(err, "failed to add transient gas used")
 	}
 
 	// reset the gas meter for current cosmos transaction
 	k.ResetGasMeterAndConsumeGas(ctx, totalGasUsed)
-	return res, nil
+
+	k.Logger(ctx).Debug("[omni-debug] receipt while executing xchain tx", "receipt", receipt)
+
+	receiptMarshal, err := receipt.MarshalJSON()
+	if err != nil {
+		return nil, nil, errorsmod.Wrap(err, "failed to marshal receipt")
+	}
+	return res, receiptMarshal, nil
 }
 
 // ApplyTransaction runs and attempts to perform a state transition with the given transaction (i.e Message), that will
