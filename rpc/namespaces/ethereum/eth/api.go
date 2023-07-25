@@ -427,7 +427,7 @@ func (e *PublicAPI) GetTransactionLogs(txHash common.Hash) ([]*ethtypes.Log, err
 	e.logger.Debug("eth_getTransactionLogs", "hash", txHash)
 
 	hexTx := txHash.Hex()
-	res, err := e.backend.GetTxByEthHash(txHash)
+	res, endBlock, err := e.backend.GetTxByEthHash(txHash)
 	if err != nil {
 		e.logger.Debug("tx not found", "hash", hexTx, "error", err.Error())
 		return nil, nil
@@ -442,6 +442,11 @@ func (e *PublicAPI) GetTransactionLogs(txHash common.Hash) ([]*ethtypes.Log, err
 	if err != nil {
 		e.logger.Debug("block result not found", "number", res.Height, "error", err.Error())
 		return nil, nil
+	}
+
+	// if endBlock is true, then the tx is custom omni xchain tx in the endblock
+	if endBlock {
+		return backend.TxLogsFromEvents(resBlockResult.EndBlockEvents, int(res.MsgIndex))
 	}
 
 	// parse tx logs from events

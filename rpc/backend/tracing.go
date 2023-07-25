@@ -31,10 +31,16 @@ import (
 // and returns them as a JSON object.
 func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfig) (interface{}, error) {
 	// Get transaction by hash
-	transaction, err := b.GetTxByEthHash(hash)
+	transaction, endblock, err := b.GetTxByEthHash(hash)
 	if err != nil {
 		b.logger.Debug("tx not found", "hash", hash)
 		return nil, err
+	}
+
+	// TODO: see if we can make it work with cross chain txs
+	// check if tx is omni cross chain tx, if it is skip
+	if endblock {
+		return nil, errors.New("cross chain tx is not traceable")
 	}
 
 	// check if block number is 0
