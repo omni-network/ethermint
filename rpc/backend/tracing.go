@@ -28,6 +28,29 @@ import (
 	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
+type traceCalls struct {
+	From    string `json:"from"`
+	Gas     string `json:"gas"`
+	GasUsed string `json:"gasUsed"`
+	Input   string `json:"input"`
+	Output  string `json:"output"`
+	To      string `json:"to"`
+	Type    string `json:"type"`
+	Value   string `json:"value"`
+}
+
+type traceType struct {
+	Calls   []traceCalls   `json:"calls"`
+	From    common.Address `json:"from"`
+	Gas     string         `json:"gas"`
+	GasUsed string         `json:"gasUsed"`
+	Input   string         `json:"input"`
+	Output  string         `json:"output"`
+	To      common.Address `json:"to"`
+	Type    string         `json:"type"`
+	Value   string         `json:"value"`
+}
+
 // TraceTransaction returns the structured logs created during the execution of EVM
 // and returns them as a JSON object.
 func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfig) (interface{}, error) {
@@ -39,9 +62,29 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfi
 	}
 
 	// TODO: see if we can make it work with cross chain txs
-	// check if tx is omni cross chain tx, if it is skip
+	// check if tx is omni cross chain tx, if it is return dummy data
 	if endblock {
-		return nil, errors.New("cross chain tx is not traceable")
+		resBlock, err := b.TendermintBlockResultByNumber(&transaction.Height)
+		if err != nil {
+			b.logger.Debug("block result not found", "height", transaction.Height, "error", err.Error())
+			return nil, nil
+		}
+		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, hash)
+		if err != nil {
+			b.logger.Debug("decoding failed", "error", err.Error())
+			return nil, fmt.Errorf("failed to decode tx from end block events: %w", err)
+		}
+		return traceType{
+			Calls:   []traceCalls{},
+			From:    common.HexToAddress(txDetails.TxMsg.From),
+			Gas:     "0x0",
+			GasUsed: "0x0",
+			Input:   "0x",
+			Output:  "0x",
+			To:      common.HexToAddress(txDetails.To),
+			Type:    "CALL",
+			Value:   "0x0",
+		}, nil
 	}
 
 	// check if block number is 0
