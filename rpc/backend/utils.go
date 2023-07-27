@@ -293,6 +293,14 @@ func GetLogsFromBlockResults(blockRes *tmrpctypes.ResultBlockResults) ([][]*etht
 
 		blockLogs = append(blockLogs, logs...)
 	}
+
+	logs, err := AllTxLogsFromEvents(blockRes.EndBlockEvents)
+	if err != nil {
+		return nil, err
+	}
+
+	blockLogs = append(blockLogs, logs...)
+
 	return blockLogs, nil
 }
 
