@@ -289,14 +289,6 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 
 	// check if tx is omni cross chain tx present in endblock events
 	if endBlock {
-		fmt.Printf("Getting end block tx receipt at height %d\n", res.Height)
-
-		block, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
-		if err != nil {
-			b.logger.Debug("block not found", "height", res.Height, "error", err.Error())
-			return nil, nil
-		}
-
 		resBlock, err := b.TendermintBlockResultByNumber(&res.Height)
 		if err != nil {
 			b.logger.Debug("block result not found", "height", res.Height, "error", err.Error())
@@ -324,7 +316,7 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 
 			// Inclusion information: These fields provide information about the inclusion of the
 			// transaction corresponding to this reciept
-			"blockHash":        common.BytesToHash(block.Block.Header.Hash()).Hex(),
+			"blockHash":        txDetails.TxReceipt.BlockHash.Hex(),
 			"blockNumber":      hexutil.Uint64(res.Height),
 			"transactionIndex": hexutil.Uint64(res.EthTxIndex),
 
