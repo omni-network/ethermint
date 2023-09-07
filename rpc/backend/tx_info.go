@@ -49,6 +49,8 @@ func (b *Backend) getRPCTransactionForEndBlockTx(txDetails *EndBlockTxDetails) (
 	b.logger.Debug("[omni-debug] receipt in rpc", "receipt", txDetails.TxReceipt)
 
 	index := hexutil.Uint64(txDetails.TxReceipt.TransactionIndex)
+	zero := (*hexutil.Big)(big.NewInt(0))
+
 	return &rpctypes.RPCTransaction{
 		BlockHash:        &txDetails.TxReceipt.BlockHash,
 		BlockNumber:      (*hexutil.Big)(txDetails.TxReceipt.BlockNumber),
@@ -66,9 +68,10 @@ func (b *Backend) getRPCTransactionForEndBlockTx(txDetails *EndBlockTxDetails) (
 		Type:             2,
 		Accesses:         nil,
 		ChainID:          (*hexutil.Big)(b.chainID),
-		V:                nil,
-		R:                nil,
-		S:                nil,
+		// zero, rather than nil, so that geth client can parse it
+		V:                zero,
+		R:                zero,
+		S:                zero,
 	}, nil
 }
 
@@ -289,6 +292,7 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 			b.logger.Debug("block result not found", "height", res.Height, "error", err.Error())
 			return nil, nil
 		}
+
 		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, hash)
 		if err != nil {
 			b.logger.Debug("decoding failed", "error", err.Error())
@@ -310,7 +314,7 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 
 			// Inclusion information: These fields provide information about the inclusion of the
 			// transaction corresponding to this reciept
-			"blockHash":        txDetails.TxReceipt.TxHash,
+			"blockHash":        txDetails.TxReceipt.BlockHash.Hex(),
 			"blockNumber":      hexutil.Uint64(res.Height),
 			"transactionIndex": hexutil.Uint64(res.EthTxIndex),
 
