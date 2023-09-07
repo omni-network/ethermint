@@ -68,9 +68,7 @@ func (b *Backend) getRPCTransactionForEndBlockTx(txDetails *EndBlockTxDetails) (
 		Type:             2,
 		Accesses:         nil,
 		ChainID:          (*hexutil.Big)(b.chainID),
-		// V:                nil,
-		// R:                nil,
-		// S:                nil,
+		// zero, rather than nil, so that geth client can parse it
 		V:                zero,
 		R:                zero,
 		S:                zero,
