@@ -54,101 +54,59 @@ type traceType struct {
 // TraceTransaction returns the structured logs created during the execution of EVM
 // and returns them as a JSON object.
 func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfig) (interface{}, error) {
-	// Get transaction by hash
-	transaction, endblock, err := b.GetTxByEthHash(hash)
+	transaction, _, err := b.GetTxByEthHash(hash)
 	if err != nil {
 		b.logger.Debug("tx not found", "hash", hash)
 		return nil, err
 	}
 
-	// TODO: see if we can make it work with cross chain txs
-	// check if tx is omni cross chain tx, if it is return dummy data
-	if endblock {
-		resBlock, err := b.TendermintBlockResultByNumber(&transaction.Height)
-		if err != nil {
-			b.logger.Debug("block result not found", "height", transaction.Height, "error", err.Error())
-			return nil, nil
-		}
-		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, hash)
-		if err != nil {
-			b.logger.Debug("decoding failed", "error", err.Error())
-			return nil, fmt.Errorf("failed to decode tx from end block events: %w", err)
-		}
-		return traceType{
-			Calls:   []traceCalls{},
-			From:    common.HexToAddress(txDetails.TxMsg.From),
-			Gas:     "0x0",
-			GasUsed: "0x0",
-			Input:   "0x",
-			Output:  "0x",
-			To:      common.HexToAddress(txDetails.To),
-			Type:    "CALL",
-			Value:   "0x0",
-		}, nil
-	}
-
-	// check if block number is 0
-	if transaction.Height == 0 {
+	blockNum := rpctypes.BlockNumber(transaction.Height)
+	if blockNum == 0 {
 		return nil, errors.New("genesis is not traceable")
 	}
 
-	blk, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(transaction.Height))
+	resBlock, err := b.TendermintBlockByNumber(blockNum)
 	if err != nil {
-		b.logger.Debug("block not found", "height", transaction.Height)
 		return nil, err
 	}
 
-	// check tx index is not out of bound
-	if uint32(len(blk.Block.Txs)) < transaction.TxIndex {
-		b.logger.Debug("tx index out of bounds", "index", transaction.TxIndex, "hash", hash.String(), "height", blk.Block.Height)
-		return nil, fmt.Errorf("transaction not included in block %v", blk.Block.Height)
+	if resBlock == nil {
+		// block not found
+		return nil, fmt.Errorf("block not found for height %d", blockNum)
 	}
+
+	blockRes, err := b.TendermintBlockResultByNumber(&resBlock.Block.Height)
+	if err != nil {
+		return nil, fmt.Errorf("block result not found for height %d", resBlock.Block.Height)
+	}
+
+	msgs := b.EthMsgsFromTendermintBlock(resBlock, blockRes)
+	endBlockMsgs := b.EthMsgsFromTendermintEndBlock(blockRes)
+	msgs = append(msgs, endBlockMsgs...)
 
 	var predecessors []*evmtypes.MsgEthereumTx
-	for _, txBz := range blk.Block.Txs[:transaction.TxIndex] {
-		tx, err := b.clientCtx.TxConfig.TxDecoder()(txBz)
-		if err != nil {
-			b.logger.Debug("failed to decode transaction in block", "height", blk.Block.Height, "error", err.Error())
-			continue
-		}
-		for _, msg := range tx.GetMsgs() {
-			ethMsg, ok := msg.(*evmtypes.MsgEthereumTx)
-			if !ok {
-				continue
-			}
-
-			predecessors = append(predecessors, ethMsg)
+	var msg *evmtypes.MsgEthereumTx
+	for _, m := range msgs {
+		if m.Hash == hash.Hex() {
+			msg = m
+			break
+		} else {
+			predecessors = append(predecessors, m)
 		}
 	}
 
-	tx, err := b.clientCtx.TxConfig.TxDecoder()(blk.Block.Txs[transaction.TxIndex])
-	if err != nil {
+	if msg == nil {
 		b.logger.Debug("tx not found", "hash", hash)
-		return nil, err
-	}
-
-	// add predecessor messages in current cosmos tx
-	for i := 0; i < int(transaction.MsgIndex); i++ {
-		ethMsg, ok := tx.GetMsgs()[i].(*evmtypes.MsgEthereumTx)
-		if !ok {
-			continue
-		}
-		predecessors = append(predecessors, ethMsg)
-	}
-
-	ethMessage, ok := tx.GetMsgs()[transaction.MsgIndex].(*evmtypes.MsgEthereumTx)
-	if !ok {
-		b.logger.Debug("invalid transaction type", "type", fmt.Sprintf("%T", tx))
-		return nil, fmt.Errorf("invalid transaction type %T", tx)
+		return nil, fmt.Errorf("tx not found in block %d", blockNum)
 	}
 
 	traceTxRequest := evmtypes.QueryTraceTxRequest{
-		Msg:             ethMessage,
+		Msg:             msg,
 		Predecessors:    predecessors,
-		BlockNumber:     blk.Block.Height,
-		BlockTime:       blk.Block.Time,
-		BlockHash:       common.Bytes2Hex(blk.BlockID.Hash),
-		ProposerAddress: sdk.ConsAddress(blk.Block.ProposerAddress),
+		BlockNumber:     resBlock.Block.Height,
+		BlockTime:       resBlock.Block.Time,
+		BlockHash:       common.Bytes2Hex(resBlock.BlockID.Hash),
+		ProposerAddress: sdk.ConsAddress(resBlock.Block.ProposerAddress),
 		ChainId:         b.chainID.Int64(),
 	}
 
@@ -162,9 +120,10 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfi
 		// 0 is a special value in `ContextWithHeight`
 		contextHeight = 1
 	}
+
 	traceResult, err := b.queryClient.TraceTx(rpctypes.ContextWithHeight(contextHeight), &traceTxRequest)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to trace tx: %w", err)
 	}
 
 	// Response format is unknown due to custom tracer config param
