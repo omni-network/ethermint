@@ -445,9 +445,14 @@ func (b *Backend) RPCBlockFromTendermintBlock(
 		}
 		ethRPCTxs = append(ethRPCTxs, rpcTx)
 	}
-	rpcTxs := b.EthRPCTransactionsFromTendermintEndBlock(blockRes)
-	for _, rpcTx := range rpcTxs {
-		ethRPCTxs = append(ethRPCTxs, rpcTx)
+
+	endBlockRPCTxs := b.EthRPCTransactionsFromTendermintEndBlock(blockRes)
+	for _, tx := range endBlockRPCTxs {
+		if !fullTx {
+			ethRPCTxs = append(ethRPCTxs, tx.Hash)
+		} else {
+			ethRPCTxs = append(ethRPCTxs, tx)
+		}
 	}
 
 	bloom, err := b.BlockBloom(blockRes)
