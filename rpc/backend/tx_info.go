@@ -69,9 +69,9 @@ func (b *Backend) getRPCTransactionForEndBlockTx(txDetails *EndBlockTxDetails) (
 		Accesses:         nil,
 		ChainID:          (*hexutil.Big)(b.chainID),
 		// zero, rather than nil, so that geth client can parse it
-		V:                zero,
-		R:                zero,
-		S:                zero,
+		V: zero,
+		R: zero,
+		S: zero,
 	}, nil
 }
 
@@ -322,6 +322,21 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 			"from": txDetails.TxMsg.From,
 			"to":   txDetails.To,
 			"type": hexutil.Uint(2),
+		}
+
+		txData, err := evmtypes.UnpackTxData(txDetails.TxMsg.Data)
+		if err != nil {
+			b.logger.Debug("decoding failed", "error", err.Error())
+			return nil, fmt.Errorf("failed to decode txData from end block ethMsg: %w", err)
+		}
+		if dynamicTx, ok := txData.(*evmtypes.DynamicFeeTx); ok {
+			baseFee, err := b.BaseFee(resBlock)
+			if err != nil {
+				// tolerate the error for pruned node.
+				b.logger.Error("fetch basefee failed, node is pruned?", "height", res.Height, "error", err)
+			} else {
+				receiptRes["effectiveGasPrice"] = hexutil.Big(*dynamicTx.EffectiveGasPrice(baseFee))
+			}
 		}
 
 		return receiptRes, nil
