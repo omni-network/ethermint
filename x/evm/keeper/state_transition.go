@@ -159,7 +159,7 @@ func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg e
 	}
 
 	// pass true to commit the StateDB
-	res, err := k.ApplyMessageWithConfig(tmpCtx, msg, nil, true, cfg, txConfig, true)
+	res, err := k.ApplyMessageWithConfig(tmpCtx, msg, nil, true, cfg, txConfig)
 	if err != nil {
 		return nil, nil, errorsmod.Wrap(err, "failed to apply ethereum core message")
 	}
@@ -302,7 +302,7 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 	}
 
 	// pass true to commit the StateDB
-	res, err := k.ApplyMessageWithConfig(tmpCtx, msg, nil, true, cfg, txConfig, false)
+	res, err := k.ApplyMessageWithConfig(tmpCtx, msg, nil, true, cfg, txConfig)
 	if err != nil {
 		return nil, errorsmod.Wrap(err, "failed to apply ethereum core message")
 	}
@@ -394,7 +394,7 @@ func (k *Keeper) ApplyMessage(ctx sdk.Context, msg core.Message, tracer vm.EVMLo
 	}
 
 	txConfig := statedb.NewEmptyTxConfig(common.BytesToHash(ctx.HeaderHash()))
-	return k.ApplyMessageWithConfig(ctx, msg, tracer, commit, cfg, txConfig, false)
+	return k.ApplyMessageWithConfig(ctx, msg, tracer, commit, cfg, txConfig)
 }
 
 // ApplyMessageWithConfig computes the new state by applying the given message against the existing state.
@@ -441,10 +441,6 @@ func (k *Keeper) ApplyMessageWithConfig(ctx sdk.Context,
 	commit bool,
 	cfg *statedb.EVMConfig,
 	txConfig statedb.TxConfig,
-	// temp fix to allow for some messages to ignore min gas multiplier flag (see https://github.com/evmos/ethermint/issues/1085)
-	// to be revisited when fee mechanism is in place, currently since gasLimit is hardcoded to 1mil in our smart contracts
-	// deposit transactions have huge gas usage and fees
-	ignoreMinGasMultiplier bool,
 ) (*types.MsgEthereumTxResponse, error) {
 	k.SetDidChangeTransient(ctx)
 
@@ -548,9 +544,6 @@ func (k *Keeper) ApplyMessageWithConfig(ctx sdk.Context,
 	}
 
 	gasUsed := sdk.MaxDec(minimumGasUsed, sdk.NewDec(int64(temporaryGasUsed))).TruncateInt().Uint64()
-	if ignoreMinGasMultiplier {
-		gasUsed = sdk.NewDec(int64(temporaryGasUsed)).TruncateInt().Uint64()
-	}
 	// reset leftoverGas, to be used by the tracer
 	leftoverGas = msg.Gas() - gasUsed
 
