@@ -16,9 +16,9 @@
 package backend
 
 import (
+	"bytes"
 	"fmt"
 	"math"
-	"bytes"
 	"math/big"
 
 	errorsmod "cosmossdk.io/errors"
@@ -96,20 +96,22 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 			return nil, err
 		}
 
-		// The first proof op is an iavl proof of storage against some
-		// evm store root. the second proof op is a simple merkle proof
-		// of the evm store root inclusion within some multistore. We're
-		// interested in the evm store root.
-		root, err := GetProofOpRoot(&proof.Ops[0])
-		if err != nil {
-			return nil, fmt.Errorf("failed to get evm store root: %w", err)
-		}
+		if proof != nil {
+			// The first proof op is an iavl proof of storage against some
+			// evm store root. the second proof op is a simple merkle proof
+			// of the evm store root inclusion within some multistore. We're
+			// interested in the evm store root.
+			root, err := GetProofOpRoot(&proof.Ops[0])
+			if err != nil {
+				return nil, fmt.Errorf("failed to get evm store root: %w", err)
+			}
 
-		// evm store hash should be the same for all storage proofs
-		if len(storageHash) > 0 && !bytes.Equal(storageHash, root) {
-			return nil, fmt.Errorf("storage hash mismatch: %x != %x", storageHash, root)
-		} else {
-			storageHash = root
+			// evm store hash should be the same for all storage proofs
+			if len(storageHash) > 0 && !bytes.Equal(storageHash, root) {
+				return nil, fmt.Errorf("storage hash mismatch: %x != %x", storageHash, root)
+			} else {
+				storageHash = root
+			}
 		}
 
 		storageProofs[i] = rpctypes.StorageResult{
@@ -118,7 +120,6 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 			Proof: GetHexProofs(proof),
 		}
 	}
-
 
 	// query EVM account
 	req := &evmtypes.QueryAccountRequest{
@@ -136,7 +137,6 @@ func (b *Backend) GetProof(address common.Address, storageKeys []string, blockNr
 	if err != nil {
 		return nil, err
 	}
-
 
 	balance, ok := sdkmath.NewIntFromString(res.Balance)
 	if !ok {
