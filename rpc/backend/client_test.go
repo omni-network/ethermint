@@ -41,6 +41,13 @@ func RegisterTxSearchEmpty(client *mocks.Client, query string) {
 		Return(&tmrpctypes.ResultTxSearch{}, nil)
 }
 
+func RegisterBlockSearchEmpty(client *mocks.Client, query string) {
+	client.On("BlockSearch", rpc.ContextWithHeight(1), query, (*int)(nil), (*int)(nil), "").
+		Return(&tmrpctypes.ResultBlockSearch{
+			Blocks: []*tmrpctypes.ResultBlock{},
+		}, nil)
+}
+
 func RegisterTxSearchError(client *mocks.Client, query string) {
 	client.On("TxSearch", rpc.ContextWithHeight(1), query, false, (*int)(nil), (*int)(nil), "").
 		Return(nil, errortypes.ErrInvalidRequest)

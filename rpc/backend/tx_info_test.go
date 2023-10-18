@@ -503,6 +503,7 @@ func (suite *BackendTestSuite) TestQueryTendermintTxIndexer() {
 			func() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterTxSearchEmpty(client, "")
+				RegisterBlockSearchEmpty(client, "")
 			},
 			func(txs *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
 				return &rpctypes.ParsedTx{}
