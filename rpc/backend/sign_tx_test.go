@@ -75,7 +75,7 @@ func (suite *BackendTestSuite) TestSendTransaction() {
 				suite.backend.clientCtx.Keyring.ImportPrivKey("test_key", armor, "")
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 			},
 			evmtypes.TransactionArgs{
@@ -98,7 +98,7 @@ func (suite *BackendTestSuite) TestSendTransaction() {
 				suite.backend.clientCtx.Keyring.ImportPrivKey("test_key", armor, "")
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 				RegisterParamsWithoutHeader(queryClient, 1)
 				ethSigner := ethtypes.LatestSigner(suite.backend.ChainConfig())
@@ -123,7 +123,7 @@ func (suite *BackendTestSuite) TestSendTransaction() {
 				suite.backend.clientCtx.Keyring.ImportPrivKey("test_key", armor, "")
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 				RegisterParamsWithoutHeader(queryClient, 1)
 				ethSigner := ethtypes.LatestSigner(suite.backend.ChainConfig())

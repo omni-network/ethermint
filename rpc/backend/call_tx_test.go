@@ -65,7 +65,7 @@ func (suite *BackendTestSuite) TestResend() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFeeDisabled(queryClient)
 			},
 			evmtypes.TransactionArgs{
@@ -87,7 +87,7 @@ func (suite *BackendTestSuite) TestResend() {
 				RegisterParams(queryClient, &header, 1)
 				RegisterFeeMarketParams(feeMarketClient, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 			},
 			evmtypes.TransactionArgs{
@@ -106,7 +106,7 @@ func (suite *BackendTestSuite) TestResend() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFeeDisabled(queryClient)
 			},
 			evmtypes.TransactionArgs{
@@ -159,7 +159,7 @@ func (suite *BackendTestSuite) TestResend() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 			},
 			evmtypes.TransactionArgs{
@@ -182,7 +182,7 @@ func (suite *BackendTestSuite) TestResend() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 			},
 			evmtypes.TransactionArgs{
@@ -202,7 +202,7 @@ func (suite *BackendTestSuite) TestResend() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 				RegisterEstimateGas(queryClient, callArgs)
 				RegisterParams(queryClient, &header, 1)
@@ -230,7 +230,7 @@ func (suite *BackendTestSuite) TestResend() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 				RegisterEstimateGas(queryClient, callArgs)
 				RegisterParams(queryClient, &header, 1)
@@ -270,7 +270,7 @@ func (suite *BackendTestSuite) TestResend() {
 }
 
 func (suite *BackendTestSuite) TestSendRawTransaction() {
-	ethTx, bz := suite.buildEthereumTx()
+	ethTx, bz := suite.buildEthereumTx(0)
 	rlpEncodedBz, _ := rlp.EncodeToBytes(ethTx.AsTransaction())
 	cosmosTx, _ := ethTx.BuildTx(suite.backend.clientCtx.TxConfig.NewTxBuilder(), "aphoton")
 	txBytes, _ := suite.backend.clientCtx.TxConfig.TxEncoder()(cosmosTx)
@@ -361,7 +361,7 @@ func (suite *BackendTestSuite) TestSendRawTransaction() {
 }
 
 func (suite *BackendTestSuite) TestDoCall() {
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	gasPrice := (*hexutil.Big)(big.NewInt(1))
 	toAddr := tests.GenerateAddress()
 	chainID := (*hexutil.Big)(suite.backend.chainID)
@@ -452,7 +452,7 @@ func (suite *BackendTestSuite) TestGasPrice() {
 				RegisterFeeMarketParams(feeMarketClient, 1)
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, sdk.NewInt(1))
 			},
 			defaultGasPrice,
@@ -468,7 +468,7 @@ func (suite *BackendTestSuite) TestGasPrice() {
 				RegisterFeeMarketParamsError(feeMarketClient, 1)
 				RegisterParams(queryClient, &header, 1)
 				RegisterBlock(client, 1, nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, sdk.NewInt(1))
 			},
 			defaultGasPrice,

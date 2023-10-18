@@ -21,7 +21,7 @@ import (
 )
 
 func (suite *BackendTestSuite) TestGetTransactionByHash() {
-	msgEthereumTx, _ := suite.buildEthereumTx()
+	msgEthereumTx, _ := suite.buildEthereumTx(0)
 	txHash := msgEthereumTx.AsTransaction().Hash()
 
 	txBz := suite.signAndEncodeEthTx(msgEthereumTx)
@@ -78,7 +78,7 @@ func (suite *BackendTestSuite) TestGetTransactionByHash() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBlock(client, 1, txBz)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFeeError(queryClient)
 			},
 			msgEthereumTx,
@@ -91,7 +91,7 @@ func (suite *BackendTestSuite) TestGetTransactionByHash() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBlock(client, 1, txBz)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, sdk.NewInt(1))
 			},
 			msgEthereumTx,
@@ -123,7 +123,7 @@ func (suite *BackendTestSuite) TestGetTransactionByHash() {
 }
 
 func (suite *BackendTestSuite) TestGetTransactionsByHashPending() {
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 	rpcTransaction, _ := rpctypes.NewRPCTransaction(msgEthereumTx.AsTransaction(), common.Hash{}, 0, 0, big.NewInt(1), suite.backend.chainID)
 
 	testCases := []struct {
@@ -183,7 +183,7 @@ func (suite *BackendTestSuite) TestGetTransactionsByHashPending() {
 }
 
 func (suite *BackendTestSuite) TestGetTxByEthHash() {
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 	rpcTransaction, _ := rpctypes.NewRPCTransaction(msgEthereumTx.AsTransaction(), common.Hash{}, 0, 0, big.NewInt(1), suite.backend.chainID)
 
 	testCases := []struct {
@@ -225,7 +225,7 @@ func (suite *BackendTestSuite) TestGetTxByEthHash() {
 }
 
 func (suite *BackendTestSuite) TestGetTransactionByBlockHashAndIndex() {
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 
 	testCases := []struct {
 		name         string
@@ -275,7 +275,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockHashAndIndex() {
 }
 
 func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
-	msgEthTx, bz := suite.buildEthereumTx()
+	msgEthTx, bz := suite.buildEthereumTx(0)
 
 	defaultBlock := types.MakeBlock(1, []types.Tx{bz}, nil, nil)
 	defaultResponseDeliverTx := []*abci.ResponseDeliverTx{
@@ -314,7 +314,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 			"pass - block txs index out of bound ",
 			func() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 			},
 			&tmrpctypes.ResultBlock{Block: types.MakeBlock(1, []types.Tx{bz}, nil, nil)},
 			1,
@@ -326,7 +326,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 			func() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFeeError(queryClient)
 			},
 			&tmrpctypes.ResultBlock{Block: defaultBlock},
@@ -345,7 +345,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 				block := &types.Block{Header: types.Header{Height: 1, ChainID: "test"}, Data: types.Data{Txs: []types.Tx{txBz}}}
 				err := suite.backend.indexer.IndexBlock(block, defaultResponseDeliverTx)
 				suite.Require().NoError(err)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, sdk.NewInt(1))
 			},
 			&tmrpctypes.ResultBlock{Block: defaultBlock},
@@ -358,7 +358,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 			func() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, sdk.NewInt(1))
 			},
 			&tmrpctypes.ResultBlock{Block: defaultBlock},
@@ -386,7 +386,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 }
 
 func (suite *BackendTestSuite) TestGetTransactionByBlockNumberAndIndex() {
-	msgEthTx, bz := suite.buildEthereumTx()
+	msgEthTx, bz := suite.buildEthereumTx(0)
 	defaultBlock := types.MakeBlock(1, []types.Tx{bz}, nil, nil)
 	txFromMsg, _ := rpctypes.NewTransactionFromMsg(
 		msgEthTx,
@@ -421,7 +421,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockNumberAndIndex() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBlock(client, 1, bz)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, sdk.NewInt(1))
 			},
 			0,
@@ -448,7 +448,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockNumberAndIndex() {
 }
 
 func (suite *BackendTestSuite) TestGetTransactionByTxIndex() {
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 
 	testCases := []struct {
 		name         string
@@ -532,7 +532,7 @@ func (suite *BackendTestSuite) TestQueryTendermintTxIndexer() {
 }
 
 func (suite *BackendTestSuite) TestGetTransactionReceipt() {
-	msgEthereumTx, _ := suite.buildEthereumTx()
+	msgEthereumTx, _ := suite.buildEthereumTx(0)
 	txHash := msgEthereumTx.AsTransaction().Hash()
 
 	txBz := suite.signAndEncodeEthTx(msgEthereumTx)
@@ -555,7 +555,7 @@ func (suite *BackendTestSuite) TestGetTransactionReceipt() {
 				RegisterParams(queryClient, &header, 1)
 				RegisterParamsWithoutHeader(queryClient, 1)
 				RegisterBlock(client, 1, txBz)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 			},
 			msgEthereumTx,
 			&types.Block{Header: types.Header{Height: 1}, Data: types.Data{Txs: []types.Tx{txBz}}},

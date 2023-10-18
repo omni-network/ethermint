@@ -12,7 +12,7 @@ import (
 )
 
 func (suite *BackendTestSuite) TestGetLogs() {
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 	logs := make([]*evmtypes.Log, 0, 1)
 	var log evmtypes.Log

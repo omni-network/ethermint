@@ -28,29 +28,6 @@ import (
 	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
-type traceCalls struct {
-	From    string `json:"from"`
-	Gas     string `json:"gas"`
-	GasUsed string `json:"gasUsed"`
-	Input   string `json:"input"`
-	Output  string `json:"output"`
-	To      string `json:"to"`
-	Type    string `json:"type"`
-	Value   string `json:"value"`
-}
-
-type traceType struct {
-	Calls   []traceCalls   `json:"calls"`
-	From    common.Address `json:"from"`
-	Gas     string         `json:"gas"`
-	GasUsed string         `json:"gasUsed"`
-	Input   string         `json:"input"`
-	Output  string         `json:"output"`
-	To      common.Address `json:"to"`
-	Type    string         `json:"type"`
-	Value   string         `json:"value"`
-}
-
 // TraceTransaction returns the structured logs created during the execution of EVM
 // and returns them as a JSON object.
 func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfig) (interface{}, error) {
