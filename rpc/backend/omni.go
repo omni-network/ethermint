@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	evmtypes "github.com/evmos/ethermint/x/evm/types"
 	rpctypes "github.com/evmos/ethermint/rpc/types"
+	evmtypes "github.com/evmos/ethermint/x/evm/types"
 )
 
 func (b *Backend) GetEvmStoreRoot(blockNum rpctypes.BlockNumber) (*hexutil.Bytes, error) {
@@ -34,7 +34,6 @@ func QueryEvmStoreRoot(
 		evmtypes.StoreKey,
 		evmtypes.StateKey(address, hexKey.Bytes()),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proof: %w", err)
 	}

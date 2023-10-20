@@ -424,7 +424,6 @@ func (k Keeper) TraceTx(c context.Context, req *types.QueryTraceTxRequest) (*typ
 
 	txConfig := statedb.NewEmptyTxConfig(common.BytesToHash(ctx.HeaderHash().Bytes()))
 	for i, tx := range req.Predecessors {
-
 		ethTx := tx.AsTransaction()
 		msg := ethtypes.NewMessage(
 			common.HexToAddress(tx.From),
@@ -468,7 +467,6 @@ func (k Keeper) TraceTx(c context.Context, req *types.QueryTraceTxRequest) (*typ
 		ctx, cfg, txConfig, common.HexToAddress(req.Msg.From), tx,
 		req.TraceConfig, false, tracerConfig,
 	)
-
 	if err != nil {
 		// error will be returned with detail status from traceTx
 		return nil, err

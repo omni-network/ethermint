@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	rpctypes "github.com/evmos/ethermint/rpc/types"
 	"github.com/evmos/ethermint/rpc/backend"
+	rpctypes "github.com/evmos/ethermint/rpc/types"
 )
 
 type PublicAPI struct {
