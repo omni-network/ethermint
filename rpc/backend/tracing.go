@@ -18,10 +18,12 @@ package backend
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	rpctypes "github.com/evmos/ethermint/rpc/types"
 	evmtypes "github.com/evmos/ethermint/x/evm/types"
 	"github.com/pkg/errors"
@@ -54,7 +56,7 @@ type traceType struct {
 // TraceTransaction returns the structured logs created during the execution of EVM
 // and returns them as a JSON object.
 func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfig) (interface{}, error) {
-	transaction, _, err := b.GetTxByEthHash(hash)
+	transaction, endblock, err := b.GetTxByEthHash(hash)
 	if err != nil {
 		b.logger.Debug("tx not found", "hash", hash)
 		return nil, err
@@ -98,6 +100,18 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfi
 	if msg == nil {
 		b.logger.Debug("tx not found", "hash", hash)
 		return nil, fmt.Errorf("tx not found in block %d", blockNum)
+	}
+
+	if !endblock {
+		signer := ethtypes.MakeSigner(b.ChainConfig(), big.NewInt(resBlock.Block.Height))
+
+		tx := msg.AsTransaction()
+		msgT, err := tx.AsMessage(signer, b.CurrentHeader().BaseFee)
+		if err != nil {
+			return nil, err
+		}
+
+		msg.From = msgT.From().String()
 	}
 
 	traceTxRequest := evmtypes.QueryTraceTxRequest{
