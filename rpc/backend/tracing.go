@@ -102,7 +102,7 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *evmtypes.TraceConfi
 		return nil, fmt.Errorf("tx not found in block %d", blockNum)
 	}
 
-	if !endblock {
+	if !endblock && msg.From == "" {
 		signer := ethtypes.MakeSigner(b.ChainConfig(), big.NewInt(resBlock.Block.Height))
 
 		tx := msg.AsTransaction()
