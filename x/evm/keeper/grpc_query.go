@@ -423,8 +423,19 @@ func (k Keeper) TraceTx(c context.Context, req *types.QueryTraceTxRequest) (*typ
 	}
 
 	txConfig := statedb.NewEmptyTxConfig(common.BytesToHash(ctx.HeaderHash().Bytes()))
+	signer := ethtypes.MakeSigner(cfg.ChainConfig, big.NewInt(ctx.BlockHeight()))
+
 	for i, tx := range req.Predecessors {
 		ethTx := tx.AsTransaction()
+		// if tx is not unsigned, from field should be derived from signer, which can be done using AsMessage function
+		if !isUnsigned(ethTx) {
+			m, err := ethTx.AsMessage(signer, cfg.BaseFee)
+			if err != nil {
+				continue
+			}
+			tx.From = m.From().String()
+		}
+
 		msg := ethtypes.NewMessage(
 			common.HexToAddress(tx.From),
 			ethTx.To(),
@@ -480,6 +491,12 @@ func (k Keeper) TraceTx(c context.Context, req *types.QueryTraceTxRequest) (*typ
 	return &types.QueryTraceTxResponse{
 		Data: resultData,
 	}, nil
+}
+
+func isUnsigned(ethTx *ethtypes.Transaction) bool {
+	r, v, s := ethTx.RawSignatureValues()
+
+	return (r == nil && v == nil && s == nil) || (r.Cmp(big.NewInt(0)) == 0 && v.Cmp(big.NewInt(0)) == 0 && s.Cmp(big.NewInt(0)) == 0)
 }
 
 // TraceBlock configures a new tracer according to the provided configuration, and
@@ -564,6 +581,15 @@ func (k *Keeper) traceTx(
 		err       error
 		timeout   = defaultTraceTimeout
 	)
+	signer := ethtypes.MakeSigner(cfg.ChainConfig, big.NewInt(ctx.BlockHeight()))
+	// if tx is not unsigned, from field should be derived from signer, which can be done using AsMessage function
+	if !isUnsigned(tx) {
+		m, err := tx.AsMessage(signer, cfg.BaseFee)
+		if err != nil {
+			return nil, 0, status.Error(codes.Internal, err.Error())
+		}
+		from = common.HexToAddress(m.From().String())
+	}
 	msg := ethtypes.NewMessage(
 		from,
 		tx.To(),
