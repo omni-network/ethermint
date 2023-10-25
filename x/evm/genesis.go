@@ -19,11 +19,11 @@ import (
 	"bytes"
 	"fmt"
 	"math/big"
+	"strings"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	abci "github.com/tendermint/tendermint/abci/types"
 
@@ -67,13 +67,7 @@ func InitGenesis(
 		address := common.HexToAddress(account.Address)
 		accAddress := sdk.AccAddress(address.Bytes())
 
-		// this does not like the 0x prefix and hides errors
-		// code := common.Hex2Bytes(account.Code)
-		code, err := hexutil.Decode(account.Code)
-		if err != nil {
-			panic(fmt.Errorf("error decoding code %s", err))
-		}
-
+		code := common.Hex2Bytes(strings.TrimPrefix(account.Code, "0x"))
 		codeHash := crypto.Keccak256Hash(code)
 
 		// check if predploy

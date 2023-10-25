@@ -83,7 +83,7 @@ func (suite *BackendTestSuite) TestGetBlockByNumber() {
 		blockRes *tmrpctypes.ResultBlockResults
 		resBlock *tmrpctypes.ResultBlock
 	)
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 
 	testCases := []struct {
 		name         string
@@ -158,7 +158,7 @@ func (suite *BackendTestSuite) TestGetBlockByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				resBlock, _ = RegisterBlock(client, height, txBz)
-				blockRes, _ = RegisterBlockResults(client, blockNum.Int64())
+				blockRes, _ = RegisterBlockResults(client, blockNum.Int64(), 1)
 				RegisterConsensusParams(client, height)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
@@ -180,7 +180,7 @@ func (suite *BackendTestSuite) TestGetBlockByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				resBlock, _ = RegisterBlock(client, height, txBz)
-				blockRes, _ = RegisterBlockResults(client, blockNum.Int64())
+				blockRes, _ = RegisterBlockResults(client, blockNum.Int64(), 1)
 				RegisterConsensusParams(client, height)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
@@ -226,7 +226,7 @@ func (suite *BackendTestSuite) TestGetBlockByHash() {
 		blockRes *tmrpctypes.ResultBlockResults
 		resBlock *tmrpctypes.ResultBlock
 	)
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 
@@ -303,7 +303,7 @@ func (suite *BackendTestSuite) TestGetBlockByHash() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				resBlock, _ = RegisterBlockByHash(client, hash, txBz)
 
-				blockRes, _ = RegisterBlockResults(client, height)
+				blockRes, _ = RegisterBlockResults(client, height, 1)
 				RegisterConsensusParams(client, height)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
@@ -326,7 +326,7 @@ func (suite *BackendTestSuite) TestGetBlockByHash() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				resBlock, _ = RegisterBlockByHash(client, hash, txBz)
 
-				blockRes, _ = RegisterBlockResults(client, height)
+				blockRes, _ = RegisterBlockResults(client, height, 1)
 				RegisterConsensusParams(client, height)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
@@ -368,7 +368,7 @@ func (suite *BackendTestSuite) TestGetBlockByHash() {
 }
 
 func (suite *BackendTestSuite) TestGetBlockTransactionCountByHash() {
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
@@ -408,7 +408,7 @@ func (suite *BackendTestSuite) TestGetBlockTransactionCountByHash() {
 				height := int64(1)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlockByHash(client, hash, nil)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 			},
 			hexutil.Uint(0),
 			true,
@@ -420,7 +420,7 @@ func (suite *BackendTestSuite) TestGetBlockTransactionCountByHash() {
 				height := int64(1)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlockByHash(client, hash, bz)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 			},
 			hexutil.Uint(1),
 			true,
@@ -442,7 +442,7 @@ func (suite *BackendTestSuite) TestGetBlockTransactionCountByHash() {
 }
 
 func (suite *BackendTestSuite) TestGetBlockTransactionCountByNumber() {
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
@@ -483,7 +483,7 @@ func (suite *BackendTestSuite) TestGetBlockTransactionCountByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlock(client, height, nil)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 			},
 			hexutil.Uint(0),
 			true,
@@ -495,7 +495,7 @@ func (suite *BackendTestSuite) TestGetBlockTransactionCountByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlock(client, height, bz)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 			},
 			hexutil.Uint(1),
 			true,
@@ -645,7 +645,7 @@ func (suite *BackendTestSuite) TestTendermintBlockResultByNumber() {
 			1,
 			func(blockNum int64) {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
-				RegisterBlockResults(client, blockNum)
+				RegisterBlockResults(client, blockNum, 1)
 
 				expBlockRes = &tmrpctypes.ResultBlockResults{
 					Height:     blockNum,
@@ -675,7 +675,7 @@ func (suite *BackendTestSuite) TestTendermintBlockResultByNumber() {
 func (suite *BackendTestSuite) TestBlockNumberFromTendermint() {
 	var resBlock *tmrpctypes.ResultBlock
 
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 	blockNum := ethrpc.NewBlockNumber(big.NewInt(block.Height))
 	blockHash := common.BytesToHash(block.Hash())
@@ -752,7 +752,7 @@ func (suite *BackendTestSuite) TestBlockNumberFromTendermint() {
 func (suite *BackendTestSuite) TestBlockNumberFromTendermintByHash() {
 	var resBlock *tmrpctypes.ResultBlock
 
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
@@ -874,7 +874,7 @@ func (suite *BackendTestSuite) TestBlockBloom() {
 }
 
 func (suite *BackendTestSuite) TestGetEthBlockFromTendermint() {
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
 	testCases := []struct {
@@ -1119,7 +1119,7 @@ func (suite *BackendTestSuite) TestGetEthBlockFromTendermint() {
 }
 
 func (suite *BackendTestSuite) TestEthMsgsFromTendermintBlock() {
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 
 	testCases := []struct {
 		name     string
@@ -1185,7 +1185,7 @@ func (suite *BackendTestSuite) TestEthMsgsFromTendermintBlock() {
 func (suite *BackendTestSuite) TestHeaderByNumber() {
 	var expResultBlock *tmrpctypes.ResultBlock
 
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 
 	testCases := []struct {
 		name         string
@@ -1236,7 +1236,7 @@ func (suite *BackendTestSuite) TestHeaderByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				expResultBlock, _ = RegisterBlock(client, height, nil)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBaseFeeError(queryClient)
@@ -1251,7 +1251,7 @@ func (suite *BackendTestSuite) TestHeaderByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				expResultBlock, _ = RegisterBlock(client, height, nil)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBaseFee(queryClient, baseFee)
@@ -1266,7 +1266,7 @@ func (suite *BackendTestSuite) TestHeaderByNumber() {
 				height := blockNum.Int64()
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				expResultBlock, _ = RegisterBlock(client, height, bz)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBaseFee(queryClient, baseFee)
@@ -1295,7 +1295,7 @@ func (suite *BackendTestSuite) TestHeaderByNumber() {
 func (suite *BackendTestSuite) TestHeaderByHash() {
 	var expResultBlock *tmrpctypes.ResultBlock
 
-	_, bz := suite.buildEthereumTx()
+	_, bz := suite.buildEthereumTx(0)
 	block := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
@@ -1346,7 +1346,7 @@ func (suite *BackendTestSuite) TestHeaderByHash() {
 				height := int64(1)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				expResultBlock, _ = RegisterBlockByHash(client, hash, bz)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBaseFeeError(queryClient)
@@ -1361,7 +1361,7 @@ func (suite *BackendTestSuite) TestHeaderByHash() {
 				height := int64(1)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				expResultBlock, _ = RegisterBlockByHash(client, hash, nil)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBaseFee(queryClient, baseFee)
@@ -1376,7 +1376,7 @@ func (suite *BackendTestSuite) TestHeaderByHash() {
 				height := int64(1)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				expResultBlock, _ = RegisterBlockByHash(client, hash, bz)
-				RegisterBlockResults(client, height)
+				RegisterBlockResults(client, height, 1)
 
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterBaseFee(queryClient, baseFee)
@@ -1403,7 +1403,7 @@ func (suite *BackendTestSuite) TestHeaderByHash() {
 }
 
 func (suite *BackendTestSuite) TestEthBlockByNumber() {
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
 	testCases := []struct {
@@ -1444,7 +1444,7 @@ func (suite *BackendTestSuite) TestEthBlockByNumber() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlock(client, height, nil)
 
-				RegisterBlockResults(client, blockNum.Int64())
+				RegisterBlockResults(client, blockNum.Int64(), 1)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				baseFee := sdk.NewInt(1)
 				RegisterBaseFee(queryClient, baseFee)
@@ -1470,7 +1470,7 @@ func (suite *BackendTestSuite) TestEthBlockByNumber() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlock(client, height, bz)
 
-				RegisterBlockResults(client, blockNum.Int64())
+				RegisterBlockResults(client, blockNum.Int64(), 1)
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				baseFee := sdk.NewInt(1)
 				RegisterBaseFee(queryClient, baseFee)
@@ -1513,7 +1513,7 @@ func (suite *BackendTestSuite) TestEthBlockByNumber() {
 }
 
 func (suite *BackendTestSuite) TestEthBlockFromTendermintBlock() {
-	msgEthereumTx, bz := suite.buildEthereumTx()
+	msgEthereumTx, bz := suite.buildEthereumTx(0)
 	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
 
 	testCases := []struct {

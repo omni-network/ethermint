@@ -69,9 +69,9 @@ func (b *Backend) getRPCTransactionForEndBlockTx(txDetails *EndBlockTxDetails) (
 		Accesses:         nil,
 		ChainID:          (*hexutil.Big)(b.chainID),
 		// zero, rather than nil, so that geth client can parse it
-		V:                zero,
-		R:                zero,
-		S:                zero,
+		V: zero,
+		R: zero,
+		S: zero,
 	}, nil
 }
 
@@ -313,7 +313,7 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 			"gasUsed":         hexutil.Uint64(txDetails.TxReceipt.GasUsed),
 
 			// Inclusion information: These fields provide information about the inclusion of the
-			// transaction corresponding to this reciept
+			// transaction corresponding to this receipt
 			"blockHash":        txDetails.TxReceipt.BlockHash.Hex(),
 			"blockNumber":      hexutil.Uint64(res.Height),
 			"transactionIndex": hexutil.Uint64(res.EthTxIndex),

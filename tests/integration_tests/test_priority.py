@@ -117,7 +117,10 @@ def test_priority(ethermint):
     tx_indexes = [(r.blockNumber, r.transactionIndex) for r in receipts]
     print(tx_indexes)
     # the first sent tx are included later, because of lower priority
-    assert all(i1 > i2 for i1, i2 in zip(tx_indexes, tx_indexes[1:]))
+    # ensure desc within continuous block 
+    assert all((
+        b1 < b2 or (b1 == b2 and i1 > i2)
+    ) for (b1, i1), (b2, i2) in zip(tx_indexes, tx_indexes[1:]))
 
 
 def test_native_tx_priority(ethermint):
