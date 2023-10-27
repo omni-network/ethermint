@@ -174,6 +174,44 @@ func ParseTxIndexerResult(txResult *tmrpctypes.ResultTx, tx sdk.Tx, getter func(
 	}, nil
 }
 
+func ParseTxFromEndBlockResult(events []abci.Event) (*ParsedTxs, error) {
+	p := &ParsedTxs{
+		TxHashes: make(map[common.Hash]int),
+	}
+	for _, event := range events {
+		if event.Type != evmtypes.EventTypeEthereumTx {
+			continue
+		}
+		if err := p.newTx(event.Attributes); err != nil {
+			return nil, err
+		}
+	}
+
+	return p, nil
+}
+
+func ParseTxIndexerEndBlockResult(height int64, events []abci.Event, getter func(*ParsedTxs) *ParsedTx) (*ethermint.TxResult, error) {
+	txs, err := ParseTxFromEndBlockResult(events)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tx end block events: block %d %v", height, err)
+	}
+
+	parsedTx := getter(txs)
+	if parsedTx == nil {
+		return nil, fmt.Errorf("ethereum tx not found in end block tx msgs: block %d", height)
+	}
+
+	return &ethermint.TxResult{
+		Height:            height,
+		TxIndex:           0,
+		MsgIndex:          uint32(parsedTx.MsgIndex),
+		EthTxIndex:        parsedTx.EthTxIndex,
+		Failed:            parsedTx.Failed,
+		GasUsed:           parsedTx.GasUsed,
+		CumulativeGasUsed: txs.AccumulativeGasUsed(parsedTx.MsgIndex),
+	}, nil
+}
+
 // newTx parse a new tx from events, called during parsing.
 func (p *ParsedTxs) newTx(attrs []abci.EventAttribute) error {
 	msgIndex := len(p.Txs)

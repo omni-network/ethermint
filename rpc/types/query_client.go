@@ -62,6 +62,26 @@ func (QueryClient) GetProof(clientCtx client.Context, storeKey string, key []byt
 		return nil, nil, fmt.Errorf("proof queries at height <= 2 are not supported")
 	}
 
+	// Removing - mirroring changes in https://github.com/evmos/ethermint/pull/1639/files
+	// "fix(rpc): align block number input behavior for eth_getProof"
+	//
+	// NOTE: there is still a mismatch between the multistore version this height
+	// maps to via abci query and the app hash of the tendermint block this height
+	// via eth_getBlockByNumber. This problem is not omni specific. At the time
+	// of writing, it exists in both ethermint and evmos.
+	//
+	// For a given tendermint block height, the app hash should represent the
+	// root of current multistore. However, it seems the tendermint block
+	// (queried indirectly via eth_getBlockByNumber) presents app hash as the
+	// multistore root at the previous height.
+	//
+	// To account for this in omni proof verification, we query the multistore
+	// via for evm store roots, and post that root to omni portals. This removes
+	// the need to verify evm store root inclusion in some app hash, and leaves
+	// only storage value inclusion proof for some given evm root.
+	//
+	// See github.com/omni-network/protomni/specs/proofs.md for more details.
+
 	abciReq := abci.RequestQuery{
 		Path:   fmt.Sprintf("store/%s/key", storeKey),
 		Data:   key,

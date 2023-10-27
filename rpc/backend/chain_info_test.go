@@ -391,7 +391,7 @@ func (suite *BackendTestSuite) TestFeeHistory() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				suite.backend.cfg.JSONRPC.FeeHistoryCap = 2
 				RegisterBlock(client, ethrpc.BlockNumber(1).Int64(), nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFeeError(queryClient)
 				RegisterValidatorAccount(queryClient, validator)
 				RegisterConsensusParams(client, 1)
@@ -411,7 +411,7 @@ func (suite *BackendTestSuite) TestFeeHistory() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				suite.backend.cfg.JSONRPC.FeeHistoryCap = 2
 				RegisterBlock(client, ethrpc.BlockNumber(1).Int64(), nil)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 				RegisterBaseFee(queryClient, baseFee)
 				RegisterValidatorAccount(queryClient, validator)
 				RegisterConsensusParams(client, 1)

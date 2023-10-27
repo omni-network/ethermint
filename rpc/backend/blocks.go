@@ -160,7 +160,8 @@ func (b *Backend) GetBlockTransactionCount(block *tmrpctypes.ResultBlock) *hexut
 	}
 
 	ethMsgs := b.EthMsgsFromTendermintBlock(block, blockRes)
-	n := hexutil.Uint(len(ethMsgs))
+	endBlockMsgs := b.EthMsgsFromTendermintEndBlock(blockRes)
+	n := hexutil.Uint(len(ethMsgs) + len(endBlockMsgs))
 	return &n
 }
 
@@ -283,6 +284,51 @@ func (b *Backend) EthMsgsFromTendermintBlock(
 	return result
 }
 
+func (b *Backend) EthMsgsFromTendermintEndBlock(
+	blockRes *tmrpctypes.ResultBlockResults,
+) []*evmtypes.MsgEthereumTx {
+	var result []*evmtypes.MsgEthereumTx
+
+	for _, event := range blockRes.EndBlockEvents {
+		if event.Type != evmtypes.EventTypeEthereumTx {
+			continue
+		}
+		resp, err := b.parseTxDetailsFromEndBlocker(event)
+		if err != nil {
+			b.logger.Error("failed to parse tx details from end blocker", "error", err.Error())
+			continue
+		}
+		result = append(result, &resp.TxMsg)
+	}
+	return result
+}
+
+func (b *Backend) EthRPCTransactionsFromTendermintEndBlock(
+	blockRes *tmrpctypes.ResultBlockResults,
+) []*rpctypes.RPCTransaction {
+	var result []*rpctypes.RPCTransaction
+
+	for _, event := range blockRes.EndBlockEvents {
+		if event.Type != evmtypes.EventTypeEthereumTx {
+			continue
+		}
+		resp, err := b.parseTxDetailsFromEndBlocker(event)
+		if err != nil {
+			b.logger.Error("failed to parse tx details from end blocker", "error", err.Error())
+			continue
+		}
+
+		rpcTx, err := b.getRPCTransactionForEndBlockTx(resp)
+		if err != nil {
+			b.logger.Error("failed to parse tx details to rpc transaction from end blocker", "error", err.Error())
+			continue
+		}
+
+		result = append(result, rpcTx)
+	}
+	return result
+}
+
 // HeaderByNumber returns the block header identified by height.
 func (b *Backend) HeaderByNumber(blockNum rpctypes.BlockNumber) (*ethtypes.Header, error) {
 	resBlock, err := b.TendermintBlockByNumber(blockNum)
@@ -400,6 +446,15 @@ func (b *Backend) RPCBlockFromTendermintBlock(
 		ethRPCTxs = append(ethRPCTxs, rpcTx)
 	}
 
+	endBlockRPCTxs := b.EthRPCTransactionsFromTendermintEndBlock(blockRes)
+	for _, tx := range endBlockRPCTxs {
+		if !fullTx {
+			ethRPCTxs = append(ethRPCTxs, tx.Hash)
+		} else {
+			ethRPCTxs = append(ethRPCTxs, tx)
+		}
+	}
+
 	bloom, err := b.BlockBloom(blockRes)
 	if err != nil {
 		b.logger.Debug("failed to query BlockBloom", "height", block.Height, "error", err.Error())
@@ -495,7 +550,8 @@ func (b *Backend) EthBlockFromTendermintBlock(
 
 	ethHeader := rpctypes.EthHeaderFromTendermint(block.Header, bloom, baseFee)
 	msgs := b.EthMsgsFromTendermintBlock(resBlock, blockRes)
-
+	endBlockMsgs := b.EthMsgsFromTendermintEndBlock(blockRes)
+	msgs = append(msgs, endBlockMsgs...)
 	txs := make([]*ethtypes.Transaction, len(msgs))
 	for i, ethMsg := range msgs {
 		txs[i] = ethMsg.AsTransaction()

@@ -29,16 +29,75 @@ import (
 	ethermint "github.com/evmos/ethermint/types"
 	evmtypes "github.com/evmos/ethermint/x/evm/types"
 	"github.com/pkg/errors"
+	abci "github.com/tendermint/tendermint/abci/types"
 	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
+func (b *Backend) getRPCTransactionForEndBlockTx(txDetails *EndBlockTxDetails) (*rpctypes.RPCTransaction, error) {
+	txData, err := evmtypes.UnpackTxData(txDetails.TxMsg.Data)
+	if err != nil {
+		b.logger.Debug("decoding failed", "error", err.Error())
+		return nil, fmt.Errorf("failed to decode txData from end block ethMsg: %w", err)
+	}
+
+	var toAddr *common.Address
+	if txDetails.To != "" {
+		temp := common.HexToAddress(txDetails.To)
+		toAddr = &temp
+	}
+
+	b.logger.Debug("[omni-debug] receipt in rpc", "receipt", txDetails.TxReceipt)
+
+	index := hexutil.Uint64(txDetails.TxReceipt.TransactionIndex)
+	zero := (*hexutil.Big)(big.NewInt(0))
+
+	return &rpctypes.RPCTransaction{
+		BlockHash:        &txDetails.TxReceipt.BlockHash,
+		BlockNumber:      (*hexutil.Big)(txDetails.TxReceipt.BlockNumber),
+		From:             common.HexToAddress(txDetails.TxMsg.From),
+		Gas:              hexutil.Uint64(txDetails.TxReceipt.GasUsed),
+		GasPrice:         (*hexutil.Big)(txData.GetGasPrice()),
+		GasFeeCap:        (*hexutil.Big)(txData.GetGasFeeCap()),
+		GasTipCap:        (*hexutil.Big)(txData.GetGasTipCap()),
+		Hash:             txDetails.TxReceipt.TxHash,
+		Input:            txData.GetData(),
+		Nonce:            hexutil.Uint64(txData.GetNonce()),
+		To:               toAddr,
+		TransactionIndex: &index,
+		Value:            (*hexutil.Big)(txData.GetValue()),
+		Type:             2,
+		Accesses:         nil,
+		ChainID:          (*hexutil.Big)(b.chainID),
+		// zero, rather than nil, so that geth client can parse it
+		V: zero,
+		R: zero,
+		S: zero,
+	}, nil
+}
+
 // GetTransactionByHash returns the Ethereum format transaction identified by Ethereum transaction hash
 func (b *Backend) GetTransactionByHash(txHash common.Hash) (*rpctypes.RPCTransaction, error) {
-	res, err := b.GetTxByEthHash(txHash)
+	res, endBlock, err := b.GetTxByEthHash(txHash)
 	hexTx := txHash.Hex()
 
 	if err != nil {
 		return b.getTransactionByHashPending(txHash)
+	}
+
+	// check if tx is omni cross chain tx present in endblock events
+	if endBlock {
+		resBlock, err := b.TendermintBlockResultByNumber(&res.Height)
+		if err != nil {
+			b.logger.Debug("block result not found", "height", res.Height, "error", err.Error())
+			return nil, nil
+		}
+		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, txHash)
+		if err != nil {
+			b.logger.Debug("decoding failed", "error", err.Error())
+			return nil, fmt.Errorf("failed to decode tx from end block events: %w", err)
+		}
+
+		return b.getRPCTransactionForEndBlockTx(txDetails)
 	}
 
 	block, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
@@ -143,21 +202,137 @@ func (b *Backend) GetGasUsed(res *ethermint.TxResult, price *big.Int, gas uint64
 	return res.GasUsed
 }
 
+func (b *Backend) getTxDetailsFromEndBlockEvents(events []abci.Event, txHash common.Hash) (*EndBlockTxDetails, error) {
+	for _, event := range events {
+		if event.Type != evmtypes.EventTypeEthereumTx {
+			continue
+		}
+		resp, err := b.parseTxDetailsFromEndBlocker(event)
+		if err != nil {
+			return nil, err
+		}
+		if resp.TxHash.Hex() == txHash.Hex() {
+			return resp, nil
+		}
+	}
+	return nil, fmt.Errorf("tx not found in event list")
+}
+
+type EndBlockTxDetails struct {
+	TxHash    common.Hash
+	TxMsg     evmtypes.MsgEthereumTx
+	TxResp    evmtypes.MsgEthereumTxResponse
+	TxReceipt ethtypes.Receipt
+	To        string
+}
+
+func (b *Backend) parseTxDetailsFromEndBlocker(event abci.Event) (*EndBlockTxDetails, error) {
+	if event.Type != evmtypes.EventTypeEthereumTx {
+		return nil, fmt.Errorf("only handles %s events", evmtypes.EventTypeEthereumTx)
+	}
+
+	resp := EndBlockTxDetails{}
+	for _, attr := range event.Attributes {
+		switch string(attr.Key) {
+		case evmtypes.AttributeKeyEthereumTxHash:
+			resp.TxHash = common.HexToHash(string(attr.Value))
+		case evmtypes.AttributeKeyTxMsgBytes:
+			hexBytes, err := hexutil.Decode(string(attr.Value))
+			if err != nil {
+				return nil, err
+			}
+			temp := ethtypes.Transaction{}
+			if err := temp.UnmarshalBinary(hexBytes); err != nil {
+				return nil, err
+			}
+			if err := resp.TxMsg.FromEthereumTx(&temp); err != nil {
+				return nil, err
+			}
+		case evmtypes.AttributeKeyReceiptBytes:
+			hexBytes, err := hexutil.Decode(string(attr.Value))
+			if err != nil {
+				return nil, err
+			}
+			if err := resp.TxReceipt.UnmarshalJSON(hexBytes); err != nil {
+				return nil, err
+			}
+		case evmtypes.AttributeKeyResponseBytes:
+			hexBytes, err := hexutil.Decode(string(attr.Value))
+			if err != nil {
+				return nil, err
+			}
+			if err := resp.TxResp.Unmarshal(hexBytes); err != nil {
+				return nil, err
+			}
+		case evmtypes.AttributeKeyRecipient:
+			resp.To = string(attr.Value)
+		case evmtypes.AttributeKeySender:
+			resp.TxMsg.From = string(attr.Value)
+		}
+	}
+	resp.TxMsg.Hash = resp.TxHash.Hex()
+	return &resp, nil
+}
+
 // GetTransactionReceipt returns the transaction receipt identified by hash.
 func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{}, error) {
 	hexTx := hash.Hex()
 	b.logger.Debug("eth_getTransactionReceipt", "hash", hexTx)
 
-	res, err := b.GetTxByEthHash(hash)
+	res, endBlock, err := b.GetTxByEthHash(hash)
 	if err != nil {
 		b.logger.Debug("tx not found", "hash", hexTx, "error", err.Error())
 		return nil, nil
 	}
+
+	// check if tx is omni cross chain tx present in endblock events
+	if endBlock {
+		resBlock, err := b.TendermintBlockResultByNumber(&res.Height)
+		if err != nil {
+			b.logger.Debug("block result not found", "height", res.Height, "error", err.Error())
+			return nil, nil
+		}
+
+		txDetails, err := b.getTxDetailsFromEndBlockEvents(resBlock.EndBlockEvents, hash)
+		if err != nil {
+			b.logger.Debug("decoding failed", "error", err.Error())
+			return nil, fmt.Errorf("failed to decode tx from end block events: %w", err)
+		}
+
+		receiptRes := map[string]interface{}{
+			// Consensus fields: These fields are defined by the Yellow Paper
+			"status":            hexutil.Uint(txDetails.TxReceipt.Status),
+			"cumulativeGasUsed": hexutil.Uint64(txDetails.TxReceipt.CumulativeGasUsed),
+			"logsBloom":         txDetails.TxReceipt.Bloom,
+			"logs":              txDetails.TxReceipt.Logs,
+
+			// Implementation fields: These fields are added by geth when processing a transaction.
+			// They are stored in the chain database.
+			"transactionHash": hash,
+			"contractAddress": nil,
+			"gasUsed":         hexutil.Uint64(txDetails.TxReceipt.GasUsed),
+
+			// Inclusion information: These fields provide information about the inclusion of the
+			// transaction corresponding to this receipt
+			"blockHash":        txDetails.TxReceipt.BlockHash.Hex(),
+			"blockNumber":      hexutil.Uint64(res.Height),
+			"transactionIndex": hexutil.Uint64(res.EthTxIndex),
+
+			// sender and receiver (contract or EOA) addreses
+			"from": txDetails.TxMsg.From,
+			"to":   txDetails.To,
+			"type": hexutil.Uint(2),
+		}
+
+		return receiptRes, nil
+	}
+
 	resBlock, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
 	if err != nil {
 		b.logger.Debug("block not found", "height", res.Height, "error", err.Error())
 		return nil, nil
 	}
+
 	tx, err := b.clientCtx.TxConfig.TxDecoder()(resBlock.Block.Txs[res.TxIndex])
 	if err != nil {
 		b.logger.Debug("decoding failed", "error", err.Error())
@@ -305,20 +480,21 @@ func (b *Backend) GetTransactionByBlockNumberAndIndex(blockNum rpctypes.BlockNum
 // GetTxByEthHash uses `/tx_query` to find transaction by ethereum tx hash
 // TODO: Don't need to convert once hashing is fixed on Tendermint
 // https://github.com/tendermint/tendermint/issues/6539
-func (b *Backend) GetTxByEthHash(hash common.Hash) (*ethermint.TxResult, error) {
+func (b *Backend) GetTxByEthHash(hash common.Hash) (*ethermint.TxResult, bool, error) {
 	if b.indexer != nil {
-		return b.indexer.GetByTxHash(hash)
+		res, err := b.indexer.GetByTxHash(hash)
+		return res, false, err
 	}
 
 	// fallback to tendermint tx indexer
 	query := fmt.Sprintf("%s.%s='%s'", evmtypes.TypeMsgEthereumTx, evmtypes.AttributeKeyEthereumTxHash, hash.Hex())
-	txResult, err := b.queryTendermintTxIndexer(query, func(txs *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
+	txResult, endBlock, err := b.queryTendermintTxIndexer(query, func(txs *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
 		return txs.GetTxByHash(hash)
 	})
 	if err != nil {
-		return nil, errorsmod.Wrapf(err, "GetTxByEthHash %s", hash.Hex())
+		return nil, false, errorsmod.Wrapf(err, "GetTxByEthHash %s", hash.Hex())
 	}
-	return txResult, nil
+	return txResult, endBlock, nil
 }
 
 // GetTxByTxIndex uses `/tx_query` to find transaction by tx index of valid ethereum txs
@@ -332,7 +508,7 @@ func (b *Backend) GetTxByTxIndex(height int64, index uint) (*ethermint.TxResult,
 		height, evmtypes.TypeMsgEthereumTx,
 		evmtypes.AttributeKeyTxIndex, index,
 	)
-	txResult, err := b.queryTendermintTxIndexer(query, func(txs *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
+	txResult, _, err := b.queryTendermintTxIndexer(query, func(txs *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
 		return txs.GetTxByTxIndex(int(index))
 	})
 	if err != nil {
@@ -342,17 +518,29 @@ func (b *Backend) GetTxByTxIndex(height int64, index uint) (*ethermint.TxResult,
 }
 
 // queryTendermintTxIndexer query tx in tendermint tx indexer
-func (b *Backend) queryTendermintTxIndexer(query string, txGetter func(*rpctypes.ParsedTxs) *rpctypes.ParsedTx) (*ethermint.TxResult, error) {
+func (b *Backend) queryTendermintTxIndexer(query string, txGetter func(*rpctypes.ParsedTxs) *rpctypes.ParsedTx) (*ethermint.TxResult, bool, error) {
 	resTxs, err := b.clientCtx.Client.TxSearch(b.ctx, query, false, nil, nil, "")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if len(resTxs.Txs) == 0 {
-		return nil, errors.New("ethereum tx not found")
+		blocks, err := b.clientCtx.Client.BlockSearch(b.ctx, query, nil, nil, "")
+		if err != nil {
+			return nil, false, err
+		}
+		if len(blocks.Blocks) == 0 {
+			return nil, false, errors.New("ethereum tx not found")
+		}
+		resBlockTxs, err := b.clientCtx.Client.BlockResults(b.ctx, &blocks.Blocks[0].Block.Height)
+		if err != nil {
+			return nil, false, err
+		}
+		res, err := rpctypes.ParseTxIndexerEndBlockResult(blocks.Blocks[0].Block.Height, resBlockTxs.EndBlockEvents, txGetter)
+		return res, true, err
 	}
 	txResult := resTxs.Txs[0]
 	if !rpctypes.TxSuccessOrExceedsBlockGasLimit(&txResult.TxResult) {
-		return nil, errors.New("invalid ethereum tx")
+		return nil, false, errors.New("invalid ethereum tx")
 	}
 
 	var tx sdk.Tx
@@ -360,11 +548,12 @@ func (b *Backend) queryTendermintTxIndexer(query string, txGetter func(*rpctypes
 		// it's only needed when the tx exceeds block gas limit
 		tx, err = b.clientCtx.TxConfig.TxDecoder()(txResult.Tx)
 		if err != nil {
-			return nil, fmt.Errorf("invalid ethereum tx")
+			return nil, false, fmt.Errorf("invalid ethereum tx")
 		}
 	}
 
-	return rpctypes.ParseTxIndexerResult(txResult, tx, txGetter)
+	res, err := rpctypes.ParseTxIndexerResult(txResult, tx, txGetter)
+	return res, false, err
 }
 
 // GetTransactionByBlockAndIndex is the common code shared by `GetTransactionByBlockNumberAndIndex` and `GetTransactionByBlockHashAndIndex`.

@@ -14,13 +14,12 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
 	"github.com/tendermint/tendermint/types"
-	tmtypes "github.com/tendermint/tendermint/types"
 	dbm "github.com/tendermint/tm-db"
 )
 
 func (suite *BackendTestSuite) TestTraceTransaction() {
-	msgEthereumTx, _ := suite.buildEthereumTx()
-	msgEthereumTx2, _ := suite.buildEthereumTx()
+	msgEthereumTx, _ := suite.buildEthereumTx(1)
+	msgEthereumTx2, _ := suite.buildEthereumTx(2)
 
 	txHash := msgEthereumTx.AsTransaction().Hash()
 	txHash2 := msgEthereumTx2.AsTransaction().Hash()
@@ -44,7 +43,7 @@ func (suite *BackendTestSuite) TestTraceTransaction() {
 
 	msgEthereumTx2.From = from.String()
 	msgEthereumTx2.Sign(ethSigner, suite.signer)
-	tx2, _ := msgEthereumTx.BuildTx(suite.backend.clientCtx.TxConfig.NewTxBuilder(), "aphoton")
+	tx2, _ := msgEthereumTx2.BuildTx(suite.backend.clientCtx.TxConfig.NewTxBuilder(), "aphoton")
 	txBz2, _ := txEncoder(tx2)
 
 	testCases := []struct {
@@ -108,16 +107,17 @@ func (suite *BackendTestSuite) TestTraceTransaction() {
 			func() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
-				RegisterBlockMultipleTxs(client, 1, []types.Tx{txBz, txBz2})
-				RegisterTraceTransactionWithPredecessors(queryClient, msgEthereumTx, []*evmtypes.MsgEthereumTx{msgEthereumTx})
+				RegisterBlockMultipleTxs(client, 1, []types.Tx{txBz2, txBz})
+				RegisterBlockResults(client, 1, 2)
+				RegisterTraceTransactionWithPredecessors(queryClient, msgEthereumTx, []*evmtypes.MsgEthereumTx{msgEthereumTx2})
 			},
-			&types.Block{Header: types.Header{Height: 1, ChainID: ChainID}, Data: types.Data{Txs: []types.Tx{txBz, txBz2}}},
+			&types.Block{Header: types.Header{Height: 1, ChainID: ChainID}, Data: types.Data{Txs: []types.Tx{txBz2, txBz}}},
 			[]*abci.ResponseDeliverTx{
 				{
 					Code: 0,
 					Events: []abci.Event{
 						{Type: evmtypes.EventTypeEthereumTx, Attributes: []abci.EventAttribute{
-							{Key: []byte("ethereumTxHash"), Value: []byte(txHash.Hex())},
+							{Key: []byte("ethereumTxHash"), Value: []byte(txHash2.Hex())},
 							{Key: []byte("txIndex"), Value: []byte("0")},
 							{Key: []byte("amount"), Value: []byte("1000")},
 							{Key: []byte("txGasUsed"), Value: []byte("21000")},
@@ -130,7 +130,7 @@ func (suite *BackendTestSuite) TestTraceTransaction() {
 					Code: 0,
 					Events: []abci.Event{
 						{Type: evmtypes.EventTypeEthereumTx, Attributes: []abci.EventAttribute{
-							{Key: []byte("ethereumTxHash"), Value: []byte(txHash2.Hex())},
+							{Key: []byte("ethereumTxHash"), Value: []byte(txHash.Hex())},
 							{Key: []byte("txIndex"), Value: []byte("1")},
 							{Key: []byte("amount"), Value: []byte("1000")},
 							{Key: []byte("txGasUsed"), Value: []byte("21000")},
@@ -149,6 +149,7 @@ func (suite *BackendTestSuite) TestTraceTransaction() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterBlock(client, 1, txBz)
+				RegisterBlockResults(client, 1, 1)
 				RegisterTraceTransaction(queryClient, msgEthereumTx)
 			},
 			&types.Block{Header: types.Header{Height: 1}, Data: types.Data{Txs: []types.Tx{txBz}}},
@@ -195,10 +196,10 @@ func (suite *BackendTestSuite) TestTraceTransaction() {
 }
 
 func (suite *BackendTestSuite) TestTraceBlock() {
-	msgEthTx, bz := suite.buildEthereumTx()
-	emptyBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{}, nil, nil)
+	msgEthTx, bz := suite.buildEthereumTx(0)
+	emptyBlock := types.MakeBlock(1, []types.Tx{}, nil, nil)
 	emptyBlock.ChainID = ChainID
-	filledBlock := tmtypes.MakeBlock(1, []tmtypes.Tx{bz}, nil, nil)
+	filledBlock := types.MakeBlock(1, []types.Tx{bz}, nil, nil)
 	filledBlock.ChainID = ChainID
 	resBlockEmpty := tmrpctypes.ResultBlock{Block: emptyBlock, BlockID: emptyBlock.LastBlockID}
 	resBlockFilled := tmrpctypes.ResultBlock{Block: filledBlock, BlockID: filledBlock.LastBlockID}
@@ -225,7 +226,7 @@ func (suite *BackendTestSuite) TestTraceBlock() {
 				queryClient := suite.backend.queryClient.QueryClient.(*mocks.EVMQueryClient)
 				RegisterTraceBlock(queryClient, []*evmtypes.MsgEthereumTx{msgEthTx})
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
-				RegisterBlockResults(client, 1)
+				RegisterBlockResults(client, 1, 1)
 			},
 			[]*evmtypes.TxTraceResult{},
 			&resBlockFilled,

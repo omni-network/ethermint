@@ -129,6 +129,130 @@ func (k Keeper) GetHashFn(ctx sdk.Context) vm.GetHashFunc {
 	}
 }
 
+// For omni
+func (k *Keeper) ApplyUnsignedMessage(ctx sdk.Context, txHash common.Hash, msg ethtypes.Message) (*types.MsgEthereumTxResponse, *ethtypes.Receipt, error) {
+	var (
+		bloom        *big.Int
+		bloomReceipt ethtypes.Bloom
+	)
+
+	cfg, err := k.EVMConfig(ctx, sdk.ConsAddress(ctx.BlockHeader().ProposerAddress), k.eip155ChainID)
+	if err != nil {
+		return nil, nil, errorsmod.Wrap(err, "failed to load evm config")
+	}
+
+	txConfig := k.TxConfig(ctx, txHash)
+
+	if err != nil {
+		return nil, nil, errorsmod.Wrap(err, "failed to return ethereum transaction as core message")
+	}
+
+	// snapshot to contain the tx processing and post processing in same scope
+	var commit func()
+	tmpCtx := ctx
+	if k.hooks != nil {
+		// Create a cache context to revert state when tx hooks fails,
+		// the cache context is only committed when both tx and hooks executed successfully.
+		// Didn't use `Snapshot` because the context stack has exponential complexity on certain operations,
+		// thus restricted to be used only inside `ApplyMessage`.
+		tmpCtx, commit = ctx.CacheContext()
+	}
+
+	// pass true to commit the StateDB
+	res, err := k.ApplyMessageWithConfig(tmpCtx, msg, nil, true, cfg, txConfig)
+	if err != nil {
+		return nil, nil, errorsmod.Wrap(err, "failed to apply ethereum core message")
+	}
+
+	logs := types.LogsToEthereum(res.Logs)
+
+	// Compute block bloom filter
+	if len(logs) > 0 {
+		bloom = k.GetBlockBloomTransient(ctx)
+		bloom.Or(bloom, big.NewInt(0).SetBytes(ethtypes.LogsBloom(logs)))
+		bloomReceipt = ethtypes.BytesToBloom(bloom.Bytes())
+	}
+
+	cumulativeGasUsed := res.GasUsed
+	if ctx.BlockGasMeter() != nil {
+		limit := ctx.BlockGasMeter().Limit()
+		cumulativeGasUsed += ctx.BlockGasMeter().GasConsumed()
+		if cumulativeGasUsed > limit {
+			cumulativeGasUsed = limit
+		}
+	}
+
+	var contractAddr common.Address
+	if msg.To() == nil {
+		contractAddr = crypto.CreateAddress(msg.From(), msg.Nonce())
+	}
+
+	receipt := ethtypes.Receipt{
+		Type:              2,   // 2 for dynamic fee type
+		PostState:         nil, // TODO: intermediate state root
+		CumulativeGasUsed: cumulativeGasUsed,
+		Bloom:             bloomReceipt,
+		Logs:              logs,
+		TxHash:            txConfig.TxHash,
+		ContractAddress:   contractAddr,
+		GasUsed:           res.GasUsed,
+		BlockHash:         txConfig.BlockHash,
+		BlockNumber:       big.NewInt(ctx.BlockHeight()),
+		TransactionIndex:  txConfig.TxIndex,
+	}
+
+	if !res.Failed() {
+		receipt.Status = ethtypes.ReceiptStatusSuccessful
+		// Only call hooks if tx executed successfully.
+		if err = k.PostTxProcessing(tmpCtx, msg, &receipt); err != nil {
+			// If hooks return error, revert the whole tx.
+			res.VmError = types.ErrPostTxProcessing.Error()
+			k.Logger(ctx).Error("tx post processing failed", "error", err)
+
+			// If the tx failed in post processing hooks, we should clear the logs
+			res.Logs = nil
+		} else if commit != nil {
+			// PostTxProcessing is successful, commit the tmpCtx
+			commit()
+			// Since the post-processing can alter the log, we need to update the result
+			res.Logs = types.NewLogsFromEth(receipt.Logs)
+			ctx.EventManager().EmitEvents(tmpCtx.EventManager().Events())
+		}
+	} else {
+		receipt.Status = ethtypes.ReceiptStatusFailed
+	}
+
+	// k.RefundGas doesn't work in omni's context, because we don't actually run the ante handler for each of these tx
+	// so the fee colelctor doesn't get the fees in the first place, and therefore doesn't have enough to refund what is due
+	// refund gas in order to match the Ethereum gas consumption instead of the default SDK one.
+	// if err = k.RefundGas(ctx, msg, msg.Gas()-res.GasUsed, cfg.Params.EvmDenom); err != nil {
+	// 	return nil, nil, errorsmod.Wrapf(err, "failed to refund gas leftover gas to sender %s", msg.From())
+	// }
+
+	if len(receipt.Logs) > 0 {
+		// Update transient block bloom filter
+		k.SetBlockBloomTransient(ctx, receipt.Bloom.Big())
+		k.SetLogSizeTransient(ctx, uint64(txConfig.LogIndex)+uint64(len(receipt.Logs)))
+	} else {
+		// logs cannot be empty
+		receipt.Logs = []*ethtypes.Log{}
+	}
+
+	k.SetTxIndexTransient(ctx, uint64(txConfig.TxIndex)+1)
+
+	totalGasUsed, err := k.AddTransientGasUsed(ctx, res.GasUsed)
+	if err != nil {
+		return nil, nil, errorsmod.Wrap(err, "failed to add transient gas used")
+	}
+
+	// reset the gas meter for current cosmos transaction
+	k.ResetGasMeterAndConsumeGas(ctx, totalGasUsed)
+
+	k.Logger(ctx).Debug("[omni-debug] receipt while executing xchain tx", "receipt", receipt)
+
+	return res, &receipt, nil
+}
+
 // ApplyTransaction runs and attempts to perform a state transition with the given transaction (i.e Message), that will
 // only be persisted (committed) to the underlying KVStore if the transaction does not fail.
 //
@@ -318,6 +442,8 @@ func (k *Keeper) ApplyMessageWithConfig(ctx sdk.Context,
 	cfg *statedb.EVMConfig,
 	txConfig statedb.TxConfig,
 ) (*types.MsgEthereumTxResponse, error) {
+	k.SetDidChangeTransient(ctx)
+
 	var (
 		ret   []byte // return bytes from evm execution
 		vmErr error  // vm errors do not effect consensus and are therefore not assigned to err

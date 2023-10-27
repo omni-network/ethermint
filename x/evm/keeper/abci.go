@@ -38,5 +38,9 @@ func (k *Keeper) EndBlock(ctx sdk.Context, _ abci.RequestEndBlock) []abci.Valida
 	bloom := ethtypes.BytesToBloom(k.GetBlockBloomTransient(infCtx).Bytes())
 	k.EmitBlockBloomEvent(infCtx, bloom)
 
+	if k.GetDidChangeTransient(ctx) {
+		k.EmitDidChangeEvent(ctx)
+	}
+
 	return []abci.ValidatorUpdate{}
 }

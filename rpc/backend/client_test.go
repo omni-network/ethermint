@@ -41,6 +41,13 @@ func RegisterTxSearchEmpty(client *mocks.Client, query string) {
 		Return(&tmrpctypes.ResultTxSearch{}, nil)
 }
 
+func RegisterBlockSearchEmpty(client *mocks.Client, query string) {
+	client.On("BlockSearch", rpc.ContextWithHeight(1), query, (*int)(nil), (*int)(nil), "").
+		Return(&tmrpctypes.ResultBlockSearch{
+			Blocks: []*tmrpctypes.ResultBlock{},
+		}, nil)
+}
+
 func RegisterTxSearchError(client *mocks.Client, query string) {
 	client.On("TxSearch", rpc.ContextWithHeight(1), query, false, (*int)(nil), (*int)(nil), "").
 		Return(nil, errortypes.ErrInvalidRequest)
@@ -199,10 +206,15 @@ func RegisterBlockResultsWithEventLog(client *mocks.Client, height int64) (*tmrp
 func RegisterBlockResults(
 	client *mocks.Client,
 	height int64,
+	txResultsNum int64,
 ) (*tmrpctypes.ResultBlockResults, error) {
+	txResults := []*abci.ResponseDeliverTx{}
+	for i := 0; i < int(txResultsNum); i++ {
+		txResults = append(txResults, &abci.ResponseDeliverTx{Code: 0, GasUsed: 0})
+	}
 	res := &tmrpctypes.ResultBlockResults{
 		Height:     height,
-		TxsResults: []*abci.ResponseDeliverTx{{Code: 0, GasUsed: 0}},
+		TxsResults: txResults,
 	}
 
 	client.On("BlockResults", rpc.ContextWithHeight(height), mock.AnythingOfType("*int64")).
@@ -218,7 +230,7 @@ func RegisterBlockResultsError(client *mocks.Client, height int64) {
 func TestRegisterBlockResults(t *testing.T) {
 	client := mocks.NewClient(t)
 	height := int64(1)
-	RegisterBlockResults(client, height)
+	RegisterBlockResults(client, height, 1)
 
 	res, err := client.BlockResults(rpc.ContextWithHeight(height), &height)
 	expRes := &tmrpctypes.ResultBlockResults{

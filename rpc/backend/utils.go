@@ -40,6 +40,8 @@ import (
 	"github.com/evmos/ethermint/rpc/types"
 	evmtypes "github.com/evmos/ethermint/x/evm/types"
 	"github.com/tendermint/tendermint/proto/tendermint/crypto"
+
+	ics23 "github.com/cosmos/ics23/go"
 )
 
 type txGasAndReward struct {
@@ -291,6 +293,14 @@ func GetLogsFromBlockResults(blockRes *tmrpctypes.ResultBlockResults) ([][]*etht
 
 		blockLogs = append(blockLogs, logs...)
 	}
+
+	logs, err := AllTxLogsFromEvents(blockRes.EndBlockEvents)
+	if err != nil {
+		return nil, err
+	}
+
+	blockLogs = append(blockLogs, logs...)
+
 	return blockLogs, nil
 }
 
@@ -300,6 +310,7 @@ func GetHexProofs(proof *crypto.ProofOps) []string {
 		return []string{""}
 	}
 	proofs := []string{}
+
 	// check for proof
 	for _, p := range proof.Ops {
 		proof := ""
@@ -309,4 +320,24 @@ func GetHexProofs(proof *crypto.ProofOps) []string {
 		proofs = append(proofs, proof)
 	}
 	return proofs
+}
+
+// GetProofOpRoot - get the root hash of some proof op
+func GetProofOpRoot(proofOp *crypto.ProofOp) ([]byte, error) {
+	// either exist or nonexist proof
+	// root should be the same regardless
+	cp := &ics23.CommitmentProof{}
+	err := cp.Unmarshal(proofOp.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	root, err := cp.Calculate()
+	if err != nil {
+		return nil, err
+	}
+
+	var r []byte = root
+
+	return r, nil
 }
